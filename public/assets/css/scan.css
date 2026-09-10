@@ -1,0 +1,278 @@
+/* ============================================================
+   Scan Page Styles — QR Kiosk + Admin QR Cards
+   ============================================================ */
+
+/* -------- Kiosk Page -------- */
+.scan-page {
+    background:
+        radial-gradient(ellipse at 20% 0%, rgba(255,255,255,0.12), transparent 55%),
+        linear-gradient(160deg, #7C0000 0%, #9E0000 45%, #C00000 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+}
+
+.scan-container {
+    width: 100%;
+    max-width: 620px;
+}
+
+.scan-header h1 { font-size: 2rem; letter-spacing: -0.02em; }
+.scan-card { padding: 2.75rem 2.5rem; }
+.scan-card h2 { font-size: 1.5rem; letter-spacing: -0.01em; margin-bottom: 0.4rem; }
+.scan-card > .text-muted { font-size: 1rem; }
+
+.result-card { padding: 3rem 2.5rem; }
+.result-icon {
+    width: 92px; height: 92px; margin: 0 auto 1rem;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 999px;
+}
+.result-icon.result-success { background: var(--success-light); color: var(--success); }
+.result-icon.result-error { background: var(--danger-light); color: var(--danger); }
+.result-card h2 { font-size: 1.75rem; }
+.result-card p { font-size: 1.05rem; }
+.result-table { font-size: 1rem; }
+.result-table td { padding: 0.55rem 0.85rem; }
+.result-card .btn { padding: 0.9rem 1.9rem; font-size: 1.05rem; }
+
+@media (min-width: 1400px) {
+    .scan-container { max-width: 760px; }
+    .scan-header h1 { font-size: 2.5rem; }
+    .scan-card h2 { font-size: 1.9rem; }
+    .result-card h2 { font-size: 2.1rem; }
+}
+
+/* -------- Header -------- */
+.scan-header {
+    text-align: center;
+    color: #fff;
+    margin-bottom: 1.5rem;
+}
+
+.scan-logo {
+    width: 76px;
+    height: 76px;
+    margin: 0 auto 0.75rem;
+    background: #fff;
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 0.35rem;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+}
+
+.scan-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.scan-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.scan-header p {
+    color: rgba(255,255,255,0.75);
+    font-size: 0.9rem;
+}
+
+/* -------- Steps -------- */
+.scan-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.15);
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    color: rgba(255,255,255,0.6);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.step.active {
+    background: #fff;
+    color: var(--primary);
+}
+
+.step.done {
+    background: rgba(255,255,255,0.3);
+    color: #fff;
+}
+
+.step-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.step.active .step-num { background: var(--primary); color: #fff; }
+.step.done .step-num { background: #fff; color: var(--primary); }
+
+.step-connector {
+    width: 30px;
+    height: 2px;
+    background: rgba(255,255,255,0.3);
+}
+
+/* -------- Scanning Card -------- */
+.scan-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    box-shadow: var(--shadow-lg, 0 24px 64px rgba(0,0,0,0.3));
+    text-align: center;
+}
+
+.scan-card h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.scan-card .text-muted { margin-bottom: 1rem; }
+
+/* -------- Phase transitions -------- */
+.scan-phase { display: none; }
+.scan-phase.active { display: block; }
+
+/* -------- QR Reader -------- */
+.qr-reader-container {
+    max-width: 420px;
+    margin: 0 auto;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.qr-reader-container video {
+    border-radius: var(--radius-sm);
+}
+
+.qr-result {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--nav-active);
+    border-radius: var(--radius-sm);
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.qr-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--primary);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* -------- Result -------- */
+.result-card { text-align: center; padding: 2.5rem 2rem; }
+
+.result-icon {
+    font-size: 4rem;
+    margin-bottom: 0.5rem;
+}
+
+.result-success { color: var(--success); }
+.result-error { color: var(--danger); }
+
+.result-card h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; }
+
+.result-card p { color: var(--text-muted); margin-bottom: 1rem; }
+
+.result-details {
+    max-width: 360px;
+    margin: 0 auto 1.25rem;
+}
+
+.result-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.result-table td {
+    padding: 0.375rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.result-table td:first-child {
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: right;
+    width: 40%;
+}
+
+.result-table td:last-child {
+    text-align: left;
+}
+
+.result-card .btn { margin: 0.25rem; }
+
+/* -------- Admin QR Codes page -------- */
+.qr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem 0;
+}
+
+.qr-card-item {
+    text-align: center;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background: var(--bg-secondary);
+}
+
+.qr-card-item canvas, .qr-card-item img {
+    max-width: 150px;
+    height: auto;
+    margin-bottom: 0.5rem;
+}
+
+.qr-card-item .student-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.qr-card-item .student-id {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+@media print {
+    .scan-page { background: #fff !important; padding: 0; }
+    .scan-header, .scan-steps { display: none !important; }
+    .scan-card { box-shadow: none; border: none; padding: 0; }
+    .result-card .btn { display: none !important; }
+    .qr-grid { grid-template-columns: repeat(4, 1fr); }
+    .qr-card-item { break-inside: avoid; border: 1px solid #ccc; }
+}

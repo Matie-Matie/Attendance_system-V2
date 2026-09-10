@@ -1,0 +1,221 @@
+<?php
+/**
+ * Admin - Attendance Reports
+ */
+$pageTitle = 'Reports';
+$currentPage = 'reports';
+$slot = '';
+
+require_once __DIR__ . '/../../bootstrap.php';
+require_role('admin');
+
+$validDate = fn($d) => (is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) ? $d : today();
+$dateFrom = $validDate($_GET['date_from'] ?? null);
+$dateTo   = $validDate($_GET['date_to'] ?? null);
+$statusFilterAllowed = ['present', 'late', 'absent'];
+$teacherFilter = (int)($_GET['teacher_id'] ?? 0);
+$sectionFilter = (int)($_GET['section_id'] ?? 0);
+$subjectFilter = (int)($_GET['subject_id'] ?? 0);
+$statusFilter = in_array($_GET['status'] ?? '', $statusFilterAllowed, true) ? $_GET['status'] : '';
+$export = $_GET['export'] ?? '';
+
+// Reference data for filters
+$teachers = db()->query("SELECT id, first_name, last_name FROM teachers WHERE status = 1 ORDER BY first_name")->fetchAll();
+$sections = db()->query("SELECT id, name FROM sections WHERE status = 1 ORDER BY name")->fetchAll();
+$subjects = db()->query("SELECT id, name FROM subjects WHERE status = 1 ORDER BY name")->fetchAll();
+
+// Build query
+$where = ["DATE(ar.timestamp) BETWEEN ? AND ?"];
+$params = [$dateFrom, $dateTo];
+
+if ($teacherFilter) { $where[] = "se.teacher_id = ?"; $params[] = $teacherFilter; }
+if ($sectionFilter) { $where[] = "se.section_id = ?"; $params[] = $sectionFilter; }
+if ($subjectFilter) { $where[] = "se.subject_id = ?"; $params[] = $subjectFilter; }
+if ($statusFilter) { $where[] = "ar.status = ?"; $params[] = $statusFilter; }
+
+$whereClause = implode(' AND ', $where);
+
+// Get records
+$stmt = db()->prepare("
+    SELECT ar.*, st.student_id as sid, st.first_name as sfirst, st.last_name as slast,
+           s.name as subject_name, sec.name as section_name,
+           t.first_name as tfirst, t.last_name as tlast,
+           as2.attendance_date
+    FROM attendance_records ar
+    JOIN attendance_sessions as2 ON ar.attendance_session_id = as2.id
+    JOIN schedule_entries se ON as2.schedule_entry_id = se.id
+    JOIN students st ON ar.student_id = st.id
+    JOIN subjects s ON se.subject_id = s.id
+    JOIN sections sec ON se.section_id = sec.id
+    JOIN teachers t ON se.teacher_id = t.id
+    WHERE $whereClause
+    ORDER BY ar.timestamp DESC
+    LIMIT 1000
+");
+$stmt->execute($params);
+$records = $stmt->fetchAll();
+
+// Summary stats
+$totalRecords = count($records);
+$presentCount = count(array_filter($records, fn($r) => $r['status'] === 'present'));
+$lateCount = count(array_filter($records, fn($r) => $r['status'] === 'late'));
+$absentCount = count(array_filter($records, fn($r) => $r['status'] === 'absent'));
+
+// CSV Export
+if ($export === 'csv') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="attendance-report-' . $dateFrom . '-to-' . $dateTo . '.csv"');
+    $output = fopen('php://output', 'w');
+    // Neutralise spreadsheet formula injection (a name like "=cmd|...").
+    $safe = fn($v) => (is_string($v) && $v !== '' && str_contains('=+-@', $v[0])) ? "'" . $v : $v;
+    fputcsv($output, ['Date', 'Student ID', 'Student Name', 'Subject', 'Section', 'Teacher', 'Status', 'Time'], ',', '"', '\\');
+
+    foreach ($records as $r) {
+        fputcsv($output, array_map($safe, [
+            $r['attendance_date'],
+            $r['sid'],
+            $r['sfirst'] . ' ' . $r['slast'],
+            $r['subject_name'],
+            $r['section_name'],
+            $r['tfirst'] . ' ' . $r['tlast'],
+            $r['status'],
+            date('h:i A', strtotime($r['timestamp']))
+        ]), ',', '"', '\\');
+    }
+    fclose($output);
+    exit;
+}
+
+ob_start();
+?>
+
+<div class="page-intro" style="margin-bottom:1.5rem;">
+    <div class="page-intro-main">
+        <h1>Reports <em><?= $totalRecords ?></em></h1>
+        <p>Filter by date, teacher, section, subject, or status. Export clean CSV for records — formula-injection safe.</p>
+    </div>
+    <div class="page-intro-stats">
+        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><strong><?= $totalRecords ?></strong><span>Records</span></div></div>
+        <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><strong><?= $presentCount ?></strong><span>Present</span></div></div>
+        <div class="mini-stat"><div class="ms-icon" style="background: var(--warning-light); color: #B07D16;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><strong><?= $lateCount ?></strong><span>Late</span></div></div>
+        <div class="mini-stat"><div class="ms-icon" style="background: var(--danger-light); color: var(--danger);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><strong><?= $absentCount ?></strong><span>Absent</span></div></div>
+    </div>
+</div>
+
+<div class="card mb-3" style="border-radius: 22px;">
+    <div class="card-header">
+        <h3>Filter Reports</h3>
+        <a href="/admin/reports.php?<?= http_build_query([
+                'export' => 'csv', 'date_from' => $dateFrom, 'date_to' => $dateTo,
+                'teacher_id' => $teacherFilter, 'section_id' => $sectionFilter,
+                'subject_id' => $subjectFilter, 'status' => $statusFilter,
+           ]) ?>"
+           class="btn btn-sm btn-primary <?= empty($records) ? 'disabled' : '' ?>">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export CSV
+        </a>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="" class="filter-bar">
+            <div class="form-group">
+                <label>From</label>
+                <input type="date" name="date_from" class="form-control" value="<?= h($dateFrom) ?>">
+            </div>
+            <div class="form-group">
+                <label>To</label>
+                <input type="date" name="date_to" class="form-control" value="<?= h($dateTo) ?>">
+            </div>
+            <div class="form-group">
+                <label>Teacher</label>
+                <select name="teacher_id" class="form-control">
+                    <option value="">All Teachers</option>
+                    <?php foreach ($teachers as $t): ?>
+                        <option value="<?= $t['id'] ?>" <?= $teacherFilter === (int)$t['id'] ? 'selected' : '' ?>><?= h($t['first_name'] . ' ' . $t['last_name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Section</label>
+                <select name="section_id" class="form-control">
+                    <option value="">All Sections</option>
+                    <?php foreach ($sections as $sec): ?>
+                        <option value="<?= $sec['id'] ?>" <?= $sectionFilter === (int)$sec['id'] ? 'selected' : '' ?>><?= h($sec['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Subject</label>
+                <select name="subject_id" class="form-control">
+                    <option value="">All Subjects</option>
+                    <?php foreach ($subjects as $sub): ?>
+                        <option value="<?= $sub['id'] ?>" <?= $subjectFilter === (int)$sub['id'] ? 'selected' : '' ?>><?= h($sub['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select name="status" class="form-control">
+                    <option value="">All Status</option>
+                    <option value="present" <?= $statusFilter === 'present' ? 'selected' : '' ?>>Present</option>
+                    <option value="late" <?= $statusFilter === 'late' ? 'selected' : '' ?>>Late</option>
+                    <option value="absent" <?= $statusFilter === 'absent' ? 'selected' : '' ?>>Absent</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>&nbsp;</label>
+                <button type="submit" class="btn btn-primary">Apply Filters</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary -->
+<div class="summary-grid">
+    <div class="summary-card"><div class="number"><?= $totalRecords ?></div><div class="label">Total Records</div></div>
+    <div class="summary-card is-present"><div class="number"><?= $presentCount ?></div><div class="label">Present</div></div>
+    <div class="summary-card is-late"><div class="number"><?= $lateCount ?></div><div class="label">Late</div></div>
+    <div class="summary-card is-absent"><div class="number"><?= $absentCount ?></div><div class="label">Absent</div></div>
+</div>
+
+<!-- Records Table -->
+<div class="card">
+    <div class="card-header">
+        <h3>Attendance Records</h3>
+        <span class="text-muted" style="font-size:0.85rem;">
+            Showing <?= count($records) ?> of <?= $totalRecords ?> records
+        </span>
+    </div>
+    <div class="card-body p-0">
+        <?php if (empty($records)): ?>
+            <div class="empty-state"><h3>No records for selected filters</h3></div>
+        <?php else: ?>
+            <div class="table-responsive" style="max-height:500px;overflow-y:auto;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Date</th><th>Student</th><th>Subject</th><th>Section</th><th>Teacher</th><th>Status</th><th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($records as $r): ?>
+                            <tr>
+                                <td><?= format_date($r['attendance_date']) ?></td>
+                                <td><strong><?= h($r['sfirst'] . ' ' . $r['slast']) ?></strong><br><code style="font-size:0.75rem;"><?= h($r['sid']) ?></code></td>
+                                <td><?= h($r['subject_name']) ?></td>
+                                <td><?= h($r['section_name']) ?></td>
+                                <td><?= h($r['tfirst'] . ' ' . $r['tlast']) ?></td>
+                                <td><span class="badge <?= $r['status'] === 'present' ? 'badge-success' : ($r['status'] === 'late' ? 'badge-warning' : 'badge-danger') ?>"><?= strtoupper($r['status']) ?></span></td>
+                                <td><?= date('h:i A', strtotime($r['timestamp'])) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<?php
+$slot = ob_get_clean();
+include __DIR__ . '/../../includes/layouts/admin-layout.php';
+?>
