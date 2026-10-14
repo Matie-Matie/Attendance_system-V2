@@ -59,27 +59,30 @@ echo  (Apache is NOT needed - this system brings its own server.)
 echo.
 %MYSQL% -h127.0.0.1 -uroot -e "SELECT 1 FROM scpls_v2.users LIMIT 1" >nul 2>nul
 if errorlevel 1 goto full_setup
-goto seed_only
+%MYSQL% -h127.0.0.1 -uroot -N -e "SELECT COUNT(*) FROM scpls_v2.sms_logs" >nul 2>nul
+if errorlevel 1 goto half_built
+goto seed_check
 
+:half_built
+echo  The database looks half-built - rebuilding it cleanly...
+echo  (This only happens before first successful setup. No real data exists yet.)
+%MYSQL% -h127.0.0.1 -uroot -e "DROP DATABASE IF EXISTS scpls_v2" >nul 2>nul
 :full_setup
 echo  Creating database and tables...
 %MYSQL% -h127.0.0.1 -uroot < "database\schema.sql"
 if errorlevel 1 goto db_fail
-:seed_only
+:seed_check
 %MYSQL% -h127.0.0.1 -uroot -N -e "SELECT COUNT(*) FROM scpls_v2.users" > "%TEMP%\scpls_cnt.txt" 2>nul
 set /p USERCNT=<"%TEMP%\scpls_cnt.txt"
 del "%TEMP%\scpls_cnt.txt" >nul 2>nul
 if "%USERCNT%"=="0" goto do_seed
 echo  Database already has accounts - skipping starter data.
-goto do_migrations
+goto db_done
 :do_seed
 echo  Loading starter data (users, students, schedule)...
 %MYSQL% -h127.0.0.1 -uroot < "database\seed.sql"
 if errorlevel 1 goto db_fail
-:do_migrations
-echo  Applying updates...
-for %%f in (database\migrations\*.sql) do %MYSQL% -h127.0.0.1 -uroot scpls_v2 < "%%f"
-if errorlevel 1 goto db_fail
+:db_done
 echo DONE > "storage\.first-run-done"
 goto start_server
 
