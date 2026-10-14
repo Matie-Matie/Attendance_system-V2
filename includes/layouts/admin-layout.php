@@ -28,7 +28,7 @@ $currentPage = $currentPage ?? '';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/style.css?v=20261014">
 </head>
 <body>
     <div class="layout">
@@ -49,6 +49,7 @@ $currentPage = $currentPage ?? '';
                     </span>
                     Dashboard
                 </a>
+                <div class="nav-group">People</div>
                 <a href="/admin/teachers.php" class="nav-item <?= $currentPage === 'teachers' ? 'active' : '' ?>">
                     <span class="nav-icon">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -61,6 +62,7 @@ $currentPage = $currentPage ?? '';
                     </span>
                     Students
                 </a>
+                <div class="nav-group">Academics</div>
                 <a href="/admin/subjects.php" class="nav-item <?= $currentPage === 'subjects' ? 'active' : '' ?>">
                     <span class="nav-icon">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -85,6 +87,7 @@ $currentPage = $currentPage ?? '';
                     </span>
                     Master Schedule
                 </a>
+                <div class="nav-group">System</div>
                 <a href="/admin/qr-codes.php" class="nav-item <?= $currentPage === 'qr-codes' ? 'active' : '' ?>">
                     <span class="nav-icon">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM3 21v-3M21 3v3M21 14h-3M14 21h3"/></svg>

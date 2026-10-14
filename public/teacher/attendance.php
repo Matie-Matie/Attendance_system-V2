@@ -125,7 +125,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('/teacher/dashboard.php');
         }
 
-        $_SESSION['_flash']['success'] = "Session closed. {$pCount} present, {$lCount} late, {$aCount} absent.";
+        // Email parents of students who attended an earlier class today but cut this one.
+        // Never let an alert problem undo or block a successful close.
+        $cutters = [];
+        try {
+            $cutters = notify_queue_cutting_alerts($sessionId);
+            notify_send_after_response(array_column($cutters, 'log_id'));
+        } catch (\Throwable $e) {
+            error_log('SCPLS cutting alerts failed: ' . $e->getMessage());
+        }
+
+        $msg = "Session closed. {$pCount} present, {$lCount} late, {$aCount} absent.";
+        if ($cutters) {
+            $msg .= ' Cutting alert emailed for ' . count($cutters) . ' student(s): ' . implode(', ', array_column($cutters, 'name')) . '.';
+        }
+        $_SESSION['_flash']['success'] = $msg;
         redirect('/teacher/dashboard.php');
     }
 }

@@ -144,6 +144,21 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     $subjects = $stmt->fetchAll();
     $totalPages = ceil($total / $perPage);
 
+    // Coverage: which subjects actually have teachers + classes (client: every subject assigned).
+    $coverage = [];
+    foreach (db()->query("
+        SELECT se.subject_id,
+               COUNT(DISTINCT se.teacher_id) AS teachers,
+               COUNT(DISTINCT se.section_id) AS sections,
+               COUNT(DISTINCT st.id) AS students
+        FROM schedule_entries se
+        LEFT JOIN students st ON st.section_id = se.section_id AND st.status = 1
+        WHERE se.status = 1
+        GROUP BY se.subject_id
+    ")->fetchAll() as $c) {
+        $coverage[(int)$c['subject_id']] = $c;
+    }
+
     $totalAll = (int) db()->query("SELECT COUNT(*) FROM subjects WHERE status = 1")->fetchColumn();
     $withCode = (int) db()->query("SELECT COUNT(*) FROM subjects WHERE code IS NOT NULL AND code != '' AND status = 1")->fetchColumn();
     $withDesc = (int) db()->query("SELECT COUNT(*) FROM subjects WHERE description IS NOT NULL AND description != '' AND status = 1")->fetchColumn();
@@ -193,6 +208,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                             <th>Subject</th>
                             <th>Code</th>
                             <th>Description</th>
+                            <th>Assigned</th>
                             <th>Status</th>
                             <th style="text-align:right;">Actions</th>
                         </tr>
@@ -200,9 +216,17 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                     <tbody>
                         <?php foreach ($subjects as $s): ?>
                             <tr>
-                                <td><strong><?= h($s['name']) ?></strong></td>
+                                <td><strong><a href="/admin/subject.php?id=<?= $s['id'] ?>"><?= h($s['name']) ?></a></strong></td>
                                 <td><?= h($s['code']) ? '<code>'.h($s['code']).'</code>' : '<span class="text-muted">—</span>' ?></td>
                                 <td style="color:var(--text-muted);font-size:0.85rem; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?= h($s['description']) ?>"><?= h($s['description']) ?: '—' ?></td>
+                                <td>
+                                    <?php $cov = $coverage[(int)$s['id']] ?? null; ?>
+                                    <?php if ($cov && (int)$cov['teachers'] > 0): ?>
+                                        <span class="badge badge-success" title="<?= (int)$cov['teachers'] ?> teachers · <?= (int)$cov['sections'] ?> sections · <?= (int)$cov['students'] ?> students"><?= (int)$cov['teachers'] ?> teacher<?= (int)$cov['teachers']===1?'':'s' ?></span>
+                                    <?php else: ?>
+                                        <span class="badge badge-warning" title="No teacher or class assigned yet">Not assigned</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <span class="badge <?= $s['status'] ? 'badge-success' : 'badge-danger' ?>">
                                         <?= $s['status'] ? 'Active' : 'Inactive' ?>

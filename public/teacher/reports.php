@@ -39,6 +39,7 @@ $whereClause = implode(' AND ', $where);
 $stmt = db()->prepare("
     SELECT ar.*, st.student_id as sid, st.first_name as sfirst, st.last_name as slast,
            s.name as subject_name, sec.name as section_name,
+           sec.grade_level, sec.track_strand, se.room,
            as2.attendance_date
     FROM attendance_records ar
     JOIN attendance_sessions as2 ON ar.attendance_session_id = as2.id
@@ -53,6 +54,17 @@ $stmt = db()->prepare("
 $stmt->execute($params);
 $records = $stmt->fetchAll();
 
+$classLabel = function (array $r): string {
+    $g = preg_replace('/[^0-9]/', '', (string) ($r['grade_level'] ?? ''));
+    $bits = [];
+    if ($g !== '' || ($r['track_strand'] ?? '') !== '') {
+        $bits[] = trim('G' . $g . ' ' . ($r['track_strand'] ?? ''));
+    }
+    $bits[] = $r['section_name'];
+    if (!empty($r['room'])) $bits[] = 'Room ' . $r['room'];
+    return implode(' · ', $bits);
+};
+
 $presentCount = count(array_filter($records, fn($r) => $r['status'] === 'present'));
 $lateCount = count(array_filter($records, fn($r) => $r['status'] === 'late'));
 
@@ -61,14 +73,16 @@ if ($export === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="my-attendance-' . $dateFrom . '-to-' . $dateTo . '.csv"');
     $output = fopen('php://output', 'w');
+    // Neutralise spreadsheet formula injection (same guard as admin export).
+    $safe = fn($v) => (is_string($v) && $v !== '' && str_contains('=+-@', $v[0])) ? "'" . $v : $v;
     fputcsv($output, ['Date', 'Student ID', 'Name', 'Subject', 'Section', 'Status', 'Time']);
     foreach ($records as $r) {
-        fputcsv($output, [
+        fputcsv($output, array_map($safe, [
             $r['attendance_date'], $r['sid'],
             $r['sfirst'] . ' ' . $r['slast'],
             $r['subject_name'], $r['section_name'],
             $r['status'], date('h:i A', strtotime($r['timestamp']))
-        ]);
+        ]));
     }
     fclose($output);
     exit;
@@ -94,8 +108,11 @@ $totalRecords = count($records);
 <div class="card mb-3" style="border-radius: 22px;">
     <div class="card-header">
         <h3>Filter My Reports</h3>
-        <a href="/teacher/reports.php?export=csv&date_from=<?=$dateFrom?>&date_to=<?=$dateTo?>&section_id=<?=$sectionFilter?>"
-           class="btn btn-sm btn-primary <?=empty($records)?'disabled':''?>">Export CSV</a>
+        <div class="flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline" onclick="window.print()">Print</button>
+            <a href="/teacher/reports.php?export=csv&date_from=<?=$dateFrom?>&date_to=<?=$dateTo?>&section_id=<?=$sectionFilter?>"
+               class="btn btn-sm btn-primary <?=empty($records)?'disabled':''?>">Export CSV</a>
+        </div>
     </div>
     <div class="card-body">
         <form method="GET" class="filter-bar">
@@ -118,7 +135,18 @@ $totalRecords = count($records);
             </div>
             <button type="submit" class="btn btn-primary btn-sm">Apply</button>
         </form>
+        <?php if ($sectionFilter): ?>
+            <div class="active-filters no-print">
+                <span class="fp-pill active">Section filtered</span>
+                <a href="/teacher/reports.php?date_from=<?=$dateFrom?>&date_to=<?=$dateTo?>" class="fp-pill">Clear</a>
+            </div>
+        <?php endif; ?>
     </div>
+</div>
+
+<div class="print-only print-report-head">
+    <h2><?= config('school_name') ?> — My Attendance Report</h2>
+    <p><?= h($dateFrom) ?> → <?= h($dateTo) ?> · <?= count($records) ?> records</p>
 </div>
 
 <div class="summary-grid">
@@ -141,7 +169,7 @@ $totalRecords = count($records);
                                 <td><?= format_date($r['attendance_date']) ?></td>
                                 <td><strong><?=h($r['sfirst'].' '.$r['slast'])?></strong><br><code style="font-size:0.75rem;"><?=h($r['sid'])?></code></td>
                                 <td><?=h($r['subject_name'])?></td>
-                                <td><?=h($r['section_name'])?></td>
+                                <td><?= h($classLabel($r)) ?></td>
                                 <td><span class="badge <?=$r['status']==='present'?'badge-success':($r['status']==='late'?'badge-warning':'badge-danger')?>"><?=strtoupper($r['status'])?></span></td>
                                 <td><?=date('h:i A', strtotime($r['timestamp']))?></td>
                             </tr>

@@ -1627,6 +1627,13 @@ select.form-control {
     color: #fff; z-index: 2;
 }
 
+/* Overlay bars must never block the scanner's own buttons
+   (Request Camera Permissions / Start / Stop / camera select). */
+.camera-topbar, .camera-bottombar { pointer-events: none; }
+.camera-shell #qr-reader { position: relative; z-index: 3; padding: 3.25rem 0.75rem; color: #fff; }
+.camera-shell #qr-reader button, .camera-shell #qr-reader select, .camera-shell #qr-reader a { position: relative; z-index: 4; pointer-events: auto; }
+.camera-shell #qr-reader__dashboard_section_csr button { padding: 0.6rem 1rem; border-radius: 10px; border: 0; background: #C00000; color: #fff; font-weight: 700; cursor: pointer; }
+
 /* ---------- Dark tune for login hero ---------- */
 [data-theme="dark"] .login-hero { background: radial-gradient(ellipse at 20% 15%, rgba(225,28,56,0.14), transparent 55%), radial-gradient(ellipse at 80% 85%, rgba(225,28,56,0.08), transparent 50%), linear-gradient(180deg, #221D19 0%, #191512 100%); border-color: rgba(243,239,234,0.08); }
 [data-theme="dark"] .hero-stat { background: rgba(34,29,25,0.72); border-color: rgba(243,239,234,0.08); }
@@ -1997,3 +2004,72 @@ body { max-width: 100%; overflow-x: clip; }
     .stats-grid { grid-template-columns: 1fr; }
 }
 
+
+/* ============================================================
+ * V2 REVISIONS (2026-10-14, Andrea alpha feedback)
+ * Bigger readable layout, active filter pills, sidebar groups,
+ * report print sheets. Screen-only helpers + print rules.
+ * ============================================================ */
+
+/* 1 — Global scale-up: 16px -> 17px base (kiosk already large, unaffected in feel) */
+html { font-size: 17px; }
+
+/* Comfortable touch targets on school PCs */
+.btn { min-height: 40px; }
+.nav-item { min-height: 42px; }
+
+/* 2 — Sidebar group labels */
+.nav-group {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 1rem 1.25rem 0.35rem;
+}
+
+/* 3 — Filter pills (schedule view toggle, audit trail, import type) */
+.fp-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.42rem 0.95rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.fp-pill:hover { border-color: var(--primary); color: var(--primary); }
+.fp-pill.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+.fp-group { display: inline-flex; gap: 0.4rem; }
+.active-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem; }
+
+/* 4 — Timetable collapses earlier so 1366px school PCs never need zoom-out */
+@media (max-width: 1280px) { .timetable { grid-template-columns: 1fr; } .timetable-head { display: none; } .timetable-cell.time { display: none; } .timetable-cell { min-height: auto; } }
+
+/* 5 — Print: only the report matters on paper */
+.print-only { display: none; }
+.print-report-head { margin: 0 0 1rem; }
+.print-report-head h2 { font-size: 1.15rem; margin: 0 0 0.2rem; }
+.print-report-head p { font-size: 0.85rem; color: #444; margin: 0; }
+@media print {
+    .sidebar, .page-header .header-actions, .filter-pillbar, .no-print,
+    .page-intro-stats, .theme-toggle, .alert, .pagination, .quick-links,
+    .card-header .btn, .card-header button { display: none !important; }
+    .layout { display: block; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .print-only { display: block; }
+    body { background: #fff; color: #000; font-size: 11px; }
+    .card { box-shadow: none; border: 1px solid #999; break-inside: avoid; }
+    .table { font-size: 10.5px; }
+    .table th, .table td { border: 1px solid #999; padding: 4px 6px; }
+    a { color: #000; text-decoration: none; }
+    .badge { border: 1px solid #666; background: none !important; color: #000 !important; }
+}

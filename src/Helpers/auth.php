@@ -87,6 +87,19 @@ function login(string $username, string $password): bool
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($password, $user['password'])) {
+        // Failed sign-in is audited too (username + IP only, never passwords).
+        try {
+            $stmt = db()->prepare(
+                "INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_values, ip_address)
+                 VALUES (NULL, 'login_failed', 'user', NULL, ?, ?)"
+            );
+            $stmt->execute([
+                json_encode(['username' => $username]),
+                $_SERVER['REMOTE_ADDR'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            error_log('SCPLS audit log failed: ' . $e->getMessage());
+        }
         return false;
     }
 
@@ -97,6 +110,8 @@ function login(string $username, string $password): bool
     $_SESSION['user_role'] = $user['role_name'];
     $_SESSION['user_name'] = $user['full_name'];
 
+    log_audit('login', 'user', (int) $user['id'], ['username' => $user['username']]);
+
     return true;
 }
 
@@ -105,6 +120,10 @@ function login(string $username, string $password): bool
  */
 function logout(): void
 {
+    // Audit the sign-out before the session is wiped (log_audit reads the session).
+    if (!empty($_SESSION['user_id'])) {
+        log_audit('logout', 'user', (int) $_SESSION['user_id']);
+    }
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();

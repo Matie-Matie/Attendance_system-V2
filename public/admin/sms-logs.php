@@ -75,7 +75,7 @@ ob_start();
 <div class="page-intro">
     <div class="page-intro-main">
         <h1>Notifications <em><?= $pendingCount ? $pendingCount.' pending' : 'All sent' ?></em></h1>
-        <p>Parent emails — at most 2 per student per day: arrival (or absent) + dismissal. Queued automatically when they scan.</p>
+        <p>Parent emails — at most 2 per student per day: arrival (or absent) + dismissal. Queued automatically when they scan. Text-message (SMS) sending is optional and not turned on — this page sends email only.</p>
     </div>
     <div class="page-intro-stats">
         <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><strong><?= $sentToday ?></strong><span>Sent today</span></div></div>
@@ -97,9 +97,16 @@ ob_start();
             <option value="morning_in" <?=$type==='morning_in'?'selected':''?>>Arrival</option>
             <option value="afternoon_out" <?=$type==='afternoon_out'?'selected':''?>>Dismissal</option>
             <option value="absent" <?=$type==='absent'?'selected':''?>>Absent</option>
+            <option value="cutting" <?=$type==='cutting'?'selected':''?>>Cutting class</option>
         </select>
         <?php if ($status || $type): ?><a href="/admin/sms-logs.php" class="btn btn-sm btn-outline">Clear</a><?php endif; ?>
     </form>
+    <?php if ($status || $type): ?>
+        <div class="active-filters">
+            <?php if ($status): ?><span class="fp-pill active"><?= h(ucfirst($status)) ?></span><?php endif; ?>
+            <?php if ($type): ?><span class="fp-pill active"><?= h(ucwords(str_replace('_', ' ', $type))) ?></span><?php endif; ?>
+        </div>
+    <?php endif; ?>
     <div class="actions flex items-center gap-2">
         <form method="POST">
             <?= csrf_field() ?>
@@ -141,8 +148,8 @@ ob_start();
                                 <td style="white-space:nowrap;"><?= format_date($l['created_at'], 'M d, h:i A') ?></td>
                                 <td>
                                     <?php
-                                        $typeBadge = ['morning_in' => 'badge-info', 'afternoon_out' => 'badge-warning', 'absent' => 'badge-danger'][$l['type']] ?? 'badge';
-                                        $typeLabel = ['morning_in' => 'ARRIVAL', 'afternoon_out' => 'DISMISSAL', 'absent' => 'ABSENT'][$l['type']] ?? strtoupper($l['type']);
+                                        $typeBadge = ['morning_in' => 'badge-info', 'afternoon_out' => 'badge-warning', 'absent' => 'badge-danger', 'cutting' => 'badge-danger'][$l['type']] ?? 'badge';
+                                        $typeLabel = ['morning_in' => 'ARRIVAL', 'afternoon_out' => 'DISMISSAL', 'absent' => 'ABSENT', 'cutting' => 'CUTTING'][$l['type']] ?? strtoupper($l['type']);
                                     ?>
                                     <span class="badge <?= $typeBadge ?>"><?= $typeLabel ?></span>
                                 </td>

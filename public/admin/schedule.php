@@ -84,11 +84,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ");
         $sectionClash->execute([$sectionId, $dayOfWeek, $id, $endTime, $startTime]);
 
-        $clash = $teacherClash->fetchColumn() > 0
-            ? 'This teacher already has a class during this time on ' . $dayOfWeek . '.'
-            : ($sectionClash->fetchColumn() > 0
-                ? 'This section already has a class during this time on ' . $dayOfWeek . '.'
-                : null);
+        // Conflict: same ROOM, same day, overlapping time. Two classes can't
+        // meet in one room at once. Room names are normalized (case +
+        // whitespace) so "RM 201" and "rm  201" still clash.
+        $roomClashCount = 0;
+        $roomKey = strtolower(preg_replace('/\s+/', ' ', trim($room)));
+        if ($roomKey !== '') {
+            $roomClash = db()->prepare("
+                SELECT COUNT(*) FROM schedule_entries
+                WHERE day_of_week = ? AND status = 1 AND id != ?
+                  AND room IS NOT NULL AND TRIM(room) != ''
+                  AND LOWER(REGEXP_REPLACE(TRIM(room), '[[:space:]]+', ' ')) = ?
+                  AND start_time < ? AND end_time > ?
+            ");
+            try {
+                $roomClash->execute([$dayOfWeek, $id, $roomKey, $endTime, $startTime]);
+                $roomClashCount = (int) $roomClash->fetchColumn();
+            } catch (\Throwable $e) {
+                // Older MySQL/MariaDB without REGEXP_REPLACE: fall back to a
+                // PHP-side check below instead of failing the save.
+                $roomClashCount = -1;
+            }
+        }
+        if ($roomClashCount === -1 && $roomKey !== '') {
+            $siblings = db()->prepare("
+                SELECT room FROM schedule_entries
+                WHERE day_of_week = ? AND status = 1 AND id != ?
+                  AND room IS NOT NULL AND TRIM(room) != ''
+                  AND start_time < ? AND end_time > ?
+            ");
+            $siblings->execute([$dayOfWeek, $id, $endTime, $startTime]);
+            foreach ($siblings->fetchAll() as $sib) {
+                if (strtolower(preg_replace('/\s+/', ' ', trim($sib['room']))) === $roomKey) {
+                    $roomClashCount = 1;
+                    break;
+                }
+            }
+            if ($roomClashCount === -1) $roomClashCount = 0;
+        }
+
+        if ($teacherClash->fetchColumn() > 0) {
+            $clash = 'This teacher already has a class during this time on ' . $dayOfWeek . '.';
+        } elseif ($sectionClash->fetchColumn() > 0) {
+            $clash = 'This section already has a class during this time on ' . $dayOfWeek . '.';
+        } elseif ($roomClashCount > 0) {
+            $clash = 'Room ' . $room . ' is already in use during this time on ' . $dayOfWeek . '.';
+        } else {
+            $clash = null;
+        }
         if ($clash) {
             $_SESSION['_flash']['error'] = 'Schedule conflict! ' . $clash;
             preserve_input($_POST);
@@ -230,9 +273,10 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     </div>
 <?php
 } else {
-    // List mode — grouped by day
+    // List mode — grouped by day, or by teacher ("Teacher Master Schedule")
     $where = ''; $params = [];
     if ($dayFilter && in_array($dayFilter, $days)) { $where = "WHERE se.day_of_week = ?"; $params[] = $dayFilter; }
+    $viewTeacher = ($_GET['view'] ?? '') === 'teacher';
 
     $stmt = db()->prepare("
         SELECT se.*, t.first_name as teacher_first, t.last_name as teacher_last,
@@ -247,11 +291,13 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     ");
     $stmt->execute($params); $entries = $stmt->fetchAll();
 
-    // Group by day
+    // Group by day (default) or by teacher
     $grouped = [];
     foreach ($entries as $e) {
-        $grouped[$e['day_of_week']][] = $e;
+        $key = $viewTeacher ? ($e['teacher_first'] . ' ' . $e['teacher_last']) : $e['day_of_week'];
+        $grouped[$key][] = $e;
     }
+    if ($viewTeacher) ksort($grouped);
 
     $totalAll = (int) db()->query("SELECT COUNT(*) FROM schedule_entries WHERE status = 1")->fetchColumn();
     $daysCovered = (int) db()->query("SELECT COUNT(DISTINCT day_of_week) FROM schedule_entries WHERE status = 1")->fetchColumn();
@@ -261,11 +307,11 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
 
 <div class="page-intro">
     <div class="page-intro-main">
-        <h1>Master <em>Schedule</em></h1>
-        <p>Every class meeting — who teaches what, to whom, when, and where. Conflicts are blocked automatically for teachers & sections.</p>
+        <h1>Teacher <em>Master Schedule</em></h1>
+        <p>Every class meeting — who teaches what, to whom, when, and where. Room, teacher & section conflicts are blocked automatically.</p>
     </div>
     <div class="page-intro-stats">
-        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><strong><?= $totalAll ?></strong><span>Slots</span></div></div>
+        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><strong><?= $totalAll ?></strong><span>Classes</span></div></div>
         <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><strong><?= $teachersWithLoad ?></strong><span>Teachers</span></div></div>
         <div class="mini-stat"><div class="ms-icon" style="background: var(--info-light); color: var(--info);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c6 3 10 0 12-2v-5"/></svg></div><div><strong><?= $sectionsCovered ?></strong><span>Sections</span></div></div>
         <div class="mini-stat"><div class="ms-icon" style="background: var(--warning-light); color: #B07D16;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></div><div><strong><?= $daysCovered ?>/6</strong><span>Days used</span></div></div>
@@ -273,7 +319,12 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
 </div>
 
 <div class="filter-pillbar">
+    <div class="fp-group" role="tablist" aria-label="Schedule view">
+        <a href="/admin/schedule.php<?= $dayFilter ? '?day=' . urlencode($dayFilter) : '' ?>" class="fp-pill <?= !$viewTeacher ? 'active' : '' ?>">By day</a>
+        <a href="/admin/schedule.php?view=teacher<?= $dayFilter ? '&day=' . urlencode($dayFilter) : '' ?>" class="fp-pill <?= $viewTeacher ? 'active' : '' ?>">By teacher</a>
+    </div>
     <form method="GET" class="fp-search" style="flex:1;">
+        <?php if ($viewTeacher): ?><input type="hidden" name="view" value="teacher"><?php endif; ?>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <select name="day" class="form-control" style="width:auto; max-width:170px; padding:0.45rem 1.9rem 0.45rem 0.9rem; border-radius:999px; font-size:0.82rem;" onchange="this.form.submit()">
             <option value="">All days</option>
@@ -281,8 +332,8 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                 <option value="<?= $d ?>" <?= $dayFilter === $d ? 'selected' : '' ?>><?= $d ?></option>
             <?php endforeach; ?>
         </select>
-        <?php if ($dayFilter): ?><a href="/admin/schedule.php" class="btn btn-sm btn-outline" style="border-radius:999px;">Clear</a><?php endif; ?>
-        <span class="text-xs text-muted nowrap" style="margin-left:0.5rem;"><?= count($entries) ?> <?= count($entries)===1?'slot':'slots' ?></span>
+        <?php if ($dayFilter): ?><a href="/admin/schedule.php<?= $viewTeacher ? '?view=teacher' : '' ?>" class="btn btn-sm btn-outline" style="border-radius:999px;">Clear</a><?php endif; ?>
+        <span class="text-xs text-muted nowrap" style="margin-left:0.5rem;"><?= count($entries) ?> <?= count($entries)===1?'class':'classes' ?></span>
     </form>
     <div class="fp-actions">
         <a href="/admin/schedule.php?action=add" class="btn btn-primary btn-sm">+ Add Entry</a>
@@ -301,28 +352,30 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
         </div>
     </div>
 <?php else: ?>
-    <?php foreach ($grouped as $day => $dayEntries): ?>
+    <?php foreach ($grouped as $groupName => $groupEntries): ?>
         <div class="card overflow-hidden" style="margin-bottom:1.25rem;">
             <div class="card-header tinted">
-                <h3 style="font-family: var(--font-display); font-size:1.05rem; font-weight: 800; letter-spacing: -0.02em;"><?= $day ?></h3>
-                <span class="badge badge-info"><?= count($dayEntries) ?> <?= count($dayEntries)===1?'class':'classes' ?></span>
+                <h3 style="font-family: var(--font-display); font-size:1.05rem; font-weight: 800; letter-spacing: -0.02em;"><?= h($groupName) ?></h3>
+                <span class="badge badge-info"><?= count($groupEntries) ?> <?= count($groupEntries)===1?'class':'classes' ?></span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>Time</th><th>Teacher</th><th>Subject</th><th>Section</th><th>Room</th><th style="text-align:right;">Actions</th>
+                                <?php if ($viewTeacher): ?><th>Day</th><?php endif; ?>
+                                <th>Time</th><?php if (!$viewTeacher): ?><th>Teacher</th><?php endif; ?><th>Subject</th><th>Section</th><th>Room</th><th style="text-align:right;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($dayEntries as $e): ?>
+                            <?php foreach ($groupEntries as $e): ?>
                                 <tr>
+                                    <?php if ($viewTeacher): ?><td><span class="badge badge-info"><?= h($e['day_of_week']) ?></span></td><?php endif; ?>
                                     <td><span class="badge badge-warning" style="font-variant-numeric: tabular-nums;"><?= format_time($e['start_time']) ?> — <?= format_time($e['end_time']) ?></span></td>
-                                    <td><div class="flex items-center gap-2"><span class="avatar" style="width:28px;height:28px;font-size:0.68rem;"><?= strtoupper(substr($e['teacher_first'],0,1).substr($e['teacher_last'],0,1)) ?></span><?= h($e['teacher_first'] . ' ' . $e['teacher_last']) ?></div></td>
-                                    <td><strong><?= h($e['subject_name']) ?></strong> <code style="font-size:0.70rem; margin-left:0.35rem;"><?= h($e['subject_code']) ?></code></td>
-                                    <td><span class="badge badge-success"><?= h($e['section_name']) ?></span></td>
-                                    <td><?= h($e['room']) ? '<code>'.h($e['room']).'</code>' : '<span class="text-muted">—</span>' ?></td>
+                                    <?php if (!$viewTeacher): ?><td><a href="/admin/teachers.php?search=<?= urlencode($e['teacher_first'] . ' ' . $e['teacher_last']) ?>"><?= h($e['teacher_first'] . ' ' . $e['teacher_last']) ?></a></td><?php endif; ?>
+                                    <td><a href="/admin/subject.php?id=<?= (int)$e['subject_id'] ?>"><strong><?= h($e['subject_name']) ?></strong></a> <code style="font-size:0.70rem; margin-left:0.35rem;"><?= h($e['subject_code']) ?></code></td>
+                                    <td><a href="/admin/sections.php?search=<?= urlencode($e['section_name']) ?>"><span class="badge badge-success"><?= h($e['section_name']) ?></span></a></td>
+                                    <td><?= $e['room'] ? '<code>'.h($e['room']).'</code>' : '<span class="text-muted">—</span>' ?></td>
                                     <td style="text-align:right;">
                                         <div class="flex gap-1" style="justify-content:flex-end;">
                                             <a href="/admin/schedule.php?action=edit&id=<?= $e['id'] ?>" class="btn btn-sm btn-outline">Edit</a>

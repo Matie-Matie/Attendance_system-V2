@@ -217,6 +217,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     <div class="fp-actions">
         <span class="text-xs text-muted nowrap" style="font-variant-numeric: tabular-nums;"><?= $total ?> result<?= $total===1?'':'s' ?></span>
         <div class="fp-divider"></div>
+        <a href="/admin/import.php?type=students" class="btn btn-outline btn-sm">Import CSV</a>
         <a href="/admin/students.php?action=add" class="btn btn-primary btn-sm">+ Add Student</a>
     </div>
 </div>
@@ -243,7 +244,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                     <div class="flex items-center gap-2">
                                         <span class="avatar"><?= h($initials) ?></span>
                                         <div>
-                                            <strong style="display:block; font-size:0.9rem; line-height:1.2;"><?= h($s['first_name'] . ' ' . $s['last_name']) ?></strong>
+                                            <strong style="display:block; font-size:0.9rem; line-height:1.2;"><a href="/admin/student.php?id=<?= $s['id'] ?>"><?= h($s['first_name'] . ' ' . $s['last_name']) ?></a></strong>
                                             <code style="font-size:0.72rem; background: transparent; padding:0; color: var(--text-muted);"><?= h($s['student_id']) ?></code>
                                         </div>
                                     </div>

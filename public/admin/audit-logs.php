@@ -12,17 +12,26 @@ require_role('admin');
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 100;
 $offset = ($page - 1) * $perPage;
+$filter = $_GET['filter'] ?? '';
+$filterWhere = '';
+$filterParams = [];
+if ($filter === 'signins') {
+    $filterWhere = "WHERE al.action IN ('login', 'logout', 'login_failed')";
+}
 
-$total = db()->query("SELECT COUNT(*) FROM audit_logs")->fetchColumn();
+$totalStmt = db()->prepare("SELECT COUNT(*) FROM audit_logs al $filterWhere");
+$totalStmt->execute($filterParams);
+$total = $totalStmt->fetchColumn();
 
 $stmt = db()->prepare("
     SELECT al.*, u.full_name, u.username
     FROM audit_logs al
     LEFT JOIN users u ON al.user_id = u.id
+    $filterWhere
     ORDER BY al.created_at DESC
     LIMIT ? OFFSET ?
 ");
-$stmt->execute([$perPage, $offset]);
+$stmt->execute(array_merge($filterParams, [$perPage, $offset]));
 $logs = $stmt->fetchAll();
 $totalPages = ceil($total / $perPage);
 
@@ -47,7 +56,11 @@ $weekLogs = (int) db()->query("SELECT COUNT(*) FROM audit_logs WHERE created_at 
 <div class="card overflow-hidden">
     <div class="card-header">
         <h3>Audit Trail</h3>
-        <span class="text-muted" style="font-size:0.85rem;"><?=$total?> entries</span>
+        <div class="flex gap-1" style="align-items:center;">
+            <a href="/admin/audit-logs.php" class="fp-pill <?= $filter === '' ? 'active' : '' ?>">All</a>
+            <a href="/admin/audit-logs.php?filter=signins" class="fp-pill <?= $filter === 'signins' ? 'active' : '' ?>">Sign-ins</a>
+            <span class="text-muted" style="font-size:0.85rem;"><?=$total?> entries</span>
+        </div>
     </div>
     <div class="card-body p-0">
         <?php if (empty($logs)): ?>
@@ -75,7 +88,7 @@ $weekLogs = (int) db()->query("SELECT COUNT(*) FROM audit_logs WHERE created_at 
             <?php if ($totalPages > 1): ?>
                 <div class="pagination">
                     <?php for ($i=1;$i<=$totalPages;$i++): ?>
-                        <a href="?page=<?=$i?>" class="<?=$i===$page?'active':''?>"><?=$i?></a>
+                        <a href="?page=<?=$i?><?= $filter ? '&filter=' . urlencode($filter) : '' ?>" class="<?=$i===$page?'active':''?>"><?=$i?></a>
                     <?php endfor; ?>
                 </div>
             <?php endif; ?>

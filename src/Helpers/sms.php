@@ -14,9 +14,14 @@
  * Delivery: real SMTP via Gmail App Password (free, no billing). Sent in the
  * background right after the scan response is flushed, so the kiosk stays fast.
  *
+ * A third, per-class email — 'cutting' — goes out when a teacher closes a session:
+ * a student scanned present/late in an EARLIER class today but is absent from
+ * this one. It is deduped per session (sms_logs.dedup_key = session id), so it
+ * can fire once for each class missed, unlike the two daily types above.
+ *
  * Dedup is guaranteed at the DATABASE level via
- *   UNIQUE KEY uq_notif_student_type_day_channel (student_id, type, sms_date, channel)
- * so concurrent scans can never double-notify.
+ *   UNIQUE KEY uq_notif_student_type_day_channel (student_id, type, sms_date, channel, dedup_key)
+ * (dedup_key is 0 for the daily types) so concurrent scans can never double-notify.
  *
  * NOTE: file + table are still named "sms_*" for historical reasons — the SMS
  * channel was dropped when the client chose email. Everything here is email.
@@ -261,16 +266,37 @@ function notify_ensure_schema(): void
     $done = true;
     try {
         setting_ensure_table();
-        if ((int) setting_get('schema_version', '1') >= 2) {
+        if ((int) setting_get('schema_version', '1') < 2) {
+            // v2: email-only notifications + absentee alerts
+            db()->exec("ALTER TABLE sms_logs
+                MODIFY type ENUM('morning_in','afternoon_out','absent') NOT NULL DEFAULT 'morning_in'");
+            db()->exec("ALTER TABLE sms_logs
+                MODIFY channel ENUM('sms','email') NOT NULL DEFAULT 'email'");
+            setting_set('schema_version', '2');
+            error_log('SCPLS schema upgraded to v2');
+        }
+    } catch (\Throwable $e) {
+        error_log('SCPLS notify_ensure_schema: ' . $e->getMessage());
+        return;
+    }
+    try {
+        if ((int) setting_get('schema_version', '1') >= 3) {
             return;
         }
-        // v2: email-only notifications + absentee alerts
+        // v3: per-class 'cutting' alerts. Each step is safe to re-run.
         db()->exec("ALTER TABLE sms_logs
-            MODIFY type ENUM('morning_in','afternoon_out','absent') NOT NULL DEFAULT 'morning_in'");
-        db()->exec("ALTER TABLE sms_logs
-            MODIFY channel ENUM('sms','email') NOT NULL DEFAULT 'email'");
-        setting_set('schema_version', '2');
-        error_log('SCPLS schema upgraded to v2');
+            MODIFY type ENUM('morning_in','afternoon_out','absent','cutting') NOT NULL DEFAULT 'morning_in'");
+        if (!db()->query("SHOW COLUMNS FROM sms_logs LIKE 'dedup_key'")->fetch()) {
+            db()->exec("ALTER TABLE sms_logs ADD COLUMN dedup_key INT NOT NULL DEFAULT 0 AFTER channel");
+        }
+        $idx = db()->query("SHOW INDEX FROM sms_logs WHERE Key_name = 'uq_notif_student_type_day_channel' AND Column_name = 'dedup_key'")->fetch();
+        if (!$idx) {
+            db()->exec("ALTER TABLE sms_logs
+                DROP INDEX uq_notif_student_type_day_channel,
+                ADD UNIQUE KEY uq_notif_student_type_day_channel (student_id, type, sms_date, channel, dedup_key)");
+        }
+        setting_set('schema_version', '3');
+        error_log('SCPLS schema upgraded to v3 (cutting alerts)');
     } catch (\Throwable $e) {
         error_log('SCPLS notify_ensure_schema: ' . $e->getMessage());
     }
@@ -414,6 +440,107 @@ function notify_queue_for_date(string $type, int $studentId, ?int $recordId, ?st
     $stmt->execute([$recordId, $studentId, $date, $type, $emailTo, $message]);
     $check->execute([$studentId, $type, $date]);
     return $check->fetchColumn() ?: null;
+}
+
+/**
+ * Build the cutting-class alert email. Same tone/format as the other parent mails.
+ *
+ * @param array $session  needs subject_name, section_name, start_time, end_time, attendance_date
+ * @param string $firstScan  datetime of the student's earliest present/late scan today
+ */
+function notify_build_cutting_email(array $student, array $session, string $firstScan): string
+{
+    $name    = trim(($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''));
+    $parent  = trim((string) ($student['parent_name'] ?? '')) ?: 'Parent/Guardian';
+    $school  = config('school_name', 'the school');
+    $sender  = config('mail.sender_name', config('short_name', 'SCPLS'));
+    $date    = date('l, F j, Y', strtotime($session['attendance_date']));
+    $arrived = date('h:i A', strtotime($firstScan));
+    $class   = date('h:i A', strtotime($session['start_time'])) . ' - ' . date('h:i A', strtotime($session['end_time']));
+    $hour    = (int) date('G');
+    $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
+
+    return "{$greeting}, {$parent},\n\n"
+        . "This is to inform you that your child {$name} was present at school earlier today "
+        . "(arrived at {$arrived}) but was NOT recorded in their {$session['subject_name']} class. "
+        . "This may mean your child cut class.\n\n"
+        . "Student: {$name}\n"
+        . "Date: {$date}\n"
+        . "Class: {$session['subject_name']} ({$class})\n"
+        . "Section: {$session['section_name']}\n\n"
+        . "This is an automated attendance notification from {$school}. "
+        . "For any questions about your child's attendance, please contact their class adviser.\n\n"
+        . "- {$sender}";
+}
+
+/**
+ * Cutting-class check — call after a teacher CLOSES a session (absent records
+ * for the un-scanned students already exist by then). A student "cut" when they
+ * were scanned present/late in an EARLIER class today but are absent from this one.
+ * Queues one email per student per missed class (dedup_key = session id).
+ *
+ * Returns [['name' => ..., 'log_id' => ...], ...] for each email freshly queued;
+ * pass the ids to notify_send_after_response() to deliver them.
+ */
+function notify_queue_cutting_alerts(int $sessionId): array
+{
+    if (!config('mail.enabled', true)) {
+        return [];
+    }
+    $stmt = db()->prepare("
+        SELECT s.id, s.attendance_date, se.start_time, se.end_time,
+               sub.name AS subject_name, sec.name AS section_name
+        FROM attendance_sessions s
+        JOIN schedule_entries se ON s.schedule_entry_id = se.id
+        JOIN subjects sub ON se.subject_id = sub.id
+        JOIN sections sec ON se.section_id = sec.id
+        WHERE s.id = ?
+    ");
+    $stmt->execute([$sessionId]);
+    $session = $stmt->fetch();
+    if (!$session) {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT st.id, st.first_name, st.last_name, st.parent_name, st.parent_email, (
+            SELECT MIN(ar2.timestamp)
+            FROM attendance_records ar2
+            JOIN attendance_sessions s2 ON ar2.attendance_session_id = s2.id
+            JOIN schedule_entries se2 ON s2.schedule_entry_id = se2.id
+            WHERE ar2.student_id = st.id
+              AND s2.attendance_date = ?
+              AND ar2.status IN ('present','late')
+              AND se2.start_time < ?
+        ) AS first_scan
+        FROM attendance_records ar
+        JOIN students st ON ar.student_id = st.id
+        WHERE ar.attendance_session_id = ? AND ar.status = 'absent' AND st.status = 1
+        HAVING first_scan IS NOT NULL
+    ");
+    $stmt->execute([$session['attendance_date'], $session['start_time'], $sessionId]);
+
+    $queued = [];
+    foreach ($stmt->fetchAll() as $st) {
+        $to = trim((string) $st['parent_email']);
+        if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            continue; // no valid recipient on file
+        }
+        $body = notify_build_cutting_email($st, $session, $st['first_scan']);
+        $ins = db()->prepare("
+            INSERT INTO sms_logs (attendance_record_id, student_id, sms_date, type, channel, dedup_key, email_to, message, status)
+            VALUES (NULL, ?, ?, 'cutting', 'email', ?, ?, ?, 'pending')
+            ON DUPLICATE KEY UPDATE id = id
+        ");
+        $ins->execute([$st['id'], $session['attendance_date'], $sessionId, $to, $body]);
+        if ($ins->rowCount() === 1) { // 1 = inserted, 0 = duplicate (already queued)
+            $queued[] = [
+                'name'   => trim($st['first_name'] . ' ' . $st['last_name']),
+                'log_id' => (int) db()->lastInsertId(),
+            ];
+        }
+    }
+    return $queued;
 }
 
 /**

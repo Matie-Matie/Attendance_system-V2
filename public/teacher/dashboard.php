@@ -79,7 +79,8 @@ if ($currentClass) {
     $stmt = db()->prepare("
         SELECT s.*,
                (SELECT COUNT(*) FROM attendance_records ar WHERE ar.attendance_session_id = s.id AND ar.status = 'present') AS live_present,
-               (SELECT COUNT(*) FROM attendance_records ar WHERE ar.attendance_session_id = s.id AND ar.status = 'late')    AS live_late
+               (SELECT COUNT(*) FROM attendance_records ar WHERE ar.attendance_session_id = s.id AND ar.status = 'late')    AS live_late,
+               (SELECT COUNT(*) FROM attendance_records ar WHERE ar.attendance_session_id = s.id AND ar.status = 'absent')  AS live_absent
         FROM attendance_sessions s
         WHERE s.schedule_entry_id = ? AND s.attendance_date = CURDATE() AND s.status = 'active'
         LIMIT 1
@@ -189,7 +190,8 @@ $dayProgress = max(0, min(100, round(($nowMinutes - 7*60) / (10*60) * 100)));
                         <div class="bcf-actions">
                             <?php if ($activeSession): ?>
                                 <a href="/teacher/attendance.php?session_id=<?= $activeSession['id'] ?>" class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume</a>
-                                <span class="bcf-stats"><?= (int)$activeSession['live_present'] ?> present • <?= (int)$activeSession['live_late'] ?> late</span>
+                                <span class="bcf-stats"><?= (int)$activeSession['live_present'] ?> present • <?= (int)$activeSession['live_late'] ?> late<?php if ((int)$activeSession['live_absent'] > 0): ?> • <?= (int)$activeSession['live_absent'] ?> absent<?php endif; ?></span>
+                                <a href="/teacher/reports.php?date_from=<?= date('Y-m-d') ?>&date_to=<?= date('Y-m-d') ?>" class="bcf-stats" style="text-decoration:underline;">Today in reports →</a>
                             <?php else: ?>
                                 <form method="POST" action="/teacher/attendance.php" style="display:inline;">
                                     <input type="hidden" name="action" value="start_session">
@@ -262,7 +264,7 @@ $dayProgress = max(0, min(100, round(($nowMinutes - 7*60) / (10*60) * 100)));
     foreach ($allEntries as $e) { $grouped[$e['day_of_week']][] = $e; }
     ?>
     <div class="week-architech">
-        <div class="week-architech-head"><h3>Week at a glance</h3><span><?= count($allEntries) ?> slots • Mon–Fri</span></div>
+        <div class="week-architech-head"><h3>Week at a glance</h3><span><?= count($allEntries) ?> classes • Mon–Fri</span></div>
         <div class="week-bento-grid">
             <?php foreach ($allDays as $day): ?>
                 <div class="week-bento <?= $day === date('l') ? 'today' : '' ?>">

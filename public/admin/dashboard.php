@@ -33,6 +33,9 @@ $present = (int) ($statusRow['present'] ?? 0);
 $late    = (int) ($statusRow['late'] ?? 0);
 $absent  = (int) ($statusRow['absent'] ?? 0);
 $logged  = $present + $late + $absent;
+$todayISO = date('Y-m-d');
+$todayReportsUrl = '/admin/reports.php?date_from=' . $todayISO . '&date_to=' . $todayISO;
+$absentReportsUrl = $todayReportsUrl . '&status=absent';
 $onTimeRate = $logged > 0 ? round($present / $logged * 100) : 0;
 $segP = $logged > 0 ? round($present / $logged * 100, 1) : 0;
 $segL = $logged > 0 ? round($late / $logged * 100, 1) : 0;
@@ -55,8 +58,21 @@ $sectionRows = db()->query("
     LIMIT 8
 ")->fetchAll();
 
-/* ---------- Active sessions right now ---------- */
-$activeSessions = db()->query("
+/* ---------- Absent today (who + where) ---------- */
+$absentToday = db()->query("
+    SELECT st.id AS student_id, st.first_name, st.last_name,
+           sec.name AS section_name, subj.name AS subject_name,
+           se.room, ar.timestamp
+    FROM attendance_records ar
+    JOIN attendance_sessions s ON ar.attendance_session_id = s.id
+    JOIN schedule_entries se ON s.schedule_entry_id = se.id
+    JOIN students st ON ar.student_id = st.id
+    JOIN sections sec ON se.section_id = sec.id
+    JOIN subjects subj ON se.subject_id = subj.id
+    WHERE s.attendance_date = CURDATE() AND ar.status = 'absent'
+    ORDER BY ar.timestamp DESC
+    LIMIT 20
+")->fetchAll();$activeSessions = db()->query("
     SELECT s.id, s.started_at,
            (SELECT COUNT(*) FROM attendance_records ar WHERE ar.attendance_session_id = s.id AND ar.status = 'present') AS live_present,
            (SELECT COUNT(*) FROM attendance_records ar WHERE ar.attendance_session_id = s.id AND ar.status = 'late')    AS live_late,
@@ -74,7 +90,7 @@ $activeSessions = db()->query("
 
 /* ---------- Recent scans feed ---------- */
 $recentScans = db()->query("
-    SELECT ar.status, ar.timestamp,
+    SELECT ar.status, ar.timestamp, st.id AS student_id,
            st.first_name, st.last_name,
            subj.name AS subject_name, sec.name AS section_name
     FROM attendance_records ar
@@ -141,6 +157,7 @@ ob_start();
             <span class="text-muted text-sm"><?= date('l, M j') ?> &bull; <?= $todaySessions ?> session<?= $todaySessions === 1 ? '' : 's' ?></span>
         </div>
         <div class="card-body">
+            <a href="<?= $todayReportsUrl ?>" class="text-sm" style="display:inline-block;margin-bottom:0.75rem;">Open in reports →</a>
             <div class="rate-ring">
                 <div class="ring" style="--val: <?= $onTimeRate ?>;">
                     <span class="ring-num"><?= $onTimeRate ?>%</span>
@@ -210,12 +227,37 @@ ob_start();
                     $pct = $t > 0 ? round($ok / $t * 100) : 0; ?>
                     <div class="prog-row">
                         <div class="prog-head">
-                            <span><?= h($r['section_name']) ?></span>
+                            <span><a href="/admin/sections.php?search=<?= urlencode($r['section_name']) ?>"><?= h($r['section_name']) ?></a></span>
                             <span class="pct"><?= $pct ?>% &bull; <?= $ok ?>/<?= $t ?></span>
                         </div>
                         <div class="prog-track"><div class="prog-fill" style="width: <?= $pct ?>%"></div></div>
                     </div>
                 <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Absent Today</h3>
+            <a href="<?= $absentReportsUrl ?>" class="text-sm">View all <?= $absent ?> in reports</a>
+        </div>
+        <div class="card-body scroll-y">
+            <?php if (empty($absentToday)): ?>
+                <div class="empty-state" style="padding:1.5rem 1rem;"><h3>No absences recorded</h3><p class="text-sm">Absences appear here when a session closes.</p></div>
+            <?php else: ?>
+                <div class="feed">
+                    <?php foreach ($absentToday as $a): ?>
+                        <div class="feed-item">
+                            <span class="feed-dot" style="background: var(--danger)"></span>
+                            <div class="feed-main">
+                                <strong><a href="/admin/student.php?id=<?= (int)$a['student_id'] ?>"><?= h($a['first_name'] . ' ' . $a['last_name']) ?></a></strong>
+                                <span><?= h($a['subject_name']) ?> &bull; <?= h($a['section_name']) ?><?= $a['room'] ? ' &bull; Room ' . h($a['room']) : '' ?></span>
+                            </div>
+                            <span class="badge badge-danger">absent</span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php endif; ?>
         </div>
     </div>
@@ -234,7 +276,7 @@ ob_start();
                         <div class="feed-item">
                             <span class="feed-dot" style="background: <?= $dotColor($r['status']) ?>"></span>
                             <div class="feed-main">
-                                <strong><?= h($r['first_name'] . ' ' . $r['last_name']) ?></strong>
+                                <strong><a href="/admin/student.php?id=<?= (int)$r['student_id'] ?>"><?= h($r['first_name'] . ' ' . $r['last_name']) ?></a></strong>
                                 <span><?= h($r['subject_name']) ?> &bull; <?= h($r['section_name']) ?></span>
                             </div>
                             <span class="badge badge-<?= $statusClass($r['status']) ?>"><?= h($r['status']) ?></span>

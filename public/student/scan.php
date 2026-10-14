@@ -20,7 +20,7 @@ require_once __DIR__ . '/../../bootstrap.php';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/style.css?v=20261014">
     <link rel="stylesheet" href="/assets/css/scan.css">
     <style>
         #qr-reader { width: 100%; max-width: 420px; margin: 0 auto; }
@@ -62,14 +62,15 @@ require_once __DIR__ . '/../../bootstrap.php';
             </div>
         </div>
 
-        <!-- Phase 2: Result -->
+        <!-- Phase 2: Result (auto-clears back to scanning — the record lives in the class session) -->
         <div id="phase-result" class="scan-phase">
             <div class="scan-card result-card">
                 <div id="result-icon" class="result-icon result-success"></div>
                 <h2 id="result-title">Attendance Logged!</h2>
                 <p id="result-message"></p>
                 <div id="result-details" class="result-details"></div>
-                <button onclick="resetScan()" class="btn btn-primary">Scan Another Student</button>
+                <p class="text-muted text-sm" id="result-autoreset">Scanning next student in <strong id="reset-count">3</strong>…</p>
+                <button onclick="resetScan()" class="btn btn-primary">Scan Now</button>
                 <a href="/" class="btn btn-outline">Home</a>
             </div>
         </div>
@@ -130,7 +131,8 @@ require_once __DIR__ . '/../../bootstrap.php';
                         'Student': data.student_name,
                         'Status': data.status.toUpperCase(),
                         'Time': data.time,
-                        'Subject': data.subject
+                        'Subject': data.subject,
+                        'Logged to': data.subject + ' · ' + data.section
                     });
                 } else if (data.already_logged) {
                     showResult('error', 'Already Logged', data.message, null);
@@ -158,6 +160,8 @@ require_once __DIR__ . '/../../bootstrap.php';
         }
     }
 
+    let resetTimer = null;
+
     function showResult(type, title, message, details) {
         showPhase('phase-result');
         setStep(2);
@@ -182,9 +186,21 @@ require_once __DIR__ . '/../../bootstrap.php';
         } else {
             detailsEl.style.display = 'none';
         }
+
+        // Kiosk flow: the result clears itself so the next student can tap.
+        // The record itself lives in the teacher's class session, not here.
+        if (resetTimer) clearInterval(resetTimer);
+        let left = 3;
+        document.getElementById('reset-count').textContent = left;
+        resetTimer = setInterval(function () {
+            left--;
+            if (left <= 0) { clearInterval(resetTimer); resetScan(); return; }
+            document.getElementById('reset-count').textContent = left;
+        }, 1000);
     }
 
     function resetScan() {
+        if (resetTimer) clearInterval(resetTimer);
         STATE.scanning = false;
         document.getElementById('qr-result').style.display = 'none';
         document.getElementById('qr-error').style.display = 'none';

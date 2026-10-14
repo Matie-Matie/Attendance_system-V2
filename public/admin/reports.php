@@ -37,8 +37,9 @@ $whereClause = implode(' AND ', $where);
 
 // Get records
 $stmt = db()->prepare("
-    SELECT ar.*, st.student_id as sid, st.first_name as sfirst, st.last_name as slast,
-           s.name as subject_name, sec.name as section_name,
+    SELECT ar.*, st.id AS student_pk, st.student_id as sid, st.first_name as sfirst, st.last_name as slast,
+           s.name as subject_name, se.subject_id as subject_id, sec.name as section_name,
+           sec.grade_level, sec.track_strand, se.room,
            t.first_name as tfirst, t.last_name as tlast,
            as2.attendance_date
     FROM attendance_records ar
@@ -54,6 +55,18 @@ $stmt = db()->prepare("
 ");
 $stmt->execute($params);
 $records = $stmt->fetchAll();
+
+// "G11 HUMSS" style class label from grade level + strand.
+$classLabel = function (array $r): string {
+    $g = preg_replace('/[^0-9]/', '', (string) ($r['grade_level'] ?? ''));
+    $bits = [];
+    if ($g !== '' || ($r['track_strand'] ?? '') !== '') {
+        $bits[] = trim('G' . $g . ' ' . ($r['track_strand'] ?? ''));
+    }
+    $bits[] = $r['section_name'];
+    if (!empty($r['room'])) $bits[] = 'Room ' . $r['room'];
+    return implode(' · ', $bits);
+};
 
 // Summary stats
 $totalRecords = count($records);
@@ -105,7 +118,9 @@ ob_start();
 <div class="card mb-3" style="border-radius: 22px;">
     <div class="card-header">
         <h3>Filter Reports</h3>
-        <a href="/admin/reports.php?<?= http_build_query([
+        <div class="flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline" onclick="window.print()">Print</button>
+            <a href="/admin/reports.php?<?= http_build_query([
                 'export' => 'csv', 'date_from' => $dateFrom, 'date_to' => $dateTo,
                 'teacher_id' => $teacherFilter, 'section_id' => $sectionFilter,
                 'subject_id' => $subjectFilter, 'status' => $statusFilter,
@@ -113,7 +128,8 @@ ob_start();
            class="btn btn-sm btn-primary <?= empty($records) ? 'disabled' : '' ?>">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export CSV
-        </a>
+            </a>
+        </div>
     </div>
     <div class="card-body">
         <form method="GET" action="" class="filter-bar">
@@ -166,7 +182,26 @@ ob_start();
                 <button type="submit" class="btn btn-primary">Apply Filters</button>
             </div>
         </form>
+        <?php
+        $activeFilters = [];
+        if ($teacherFilter) $activeFilters[] = 'Teacher';
+        if ($sectionFilter) $activeFilters[] = 'Section';
+        if ($subjectFilter) $activeFilters[] = 'Subject';
+        if ($statusFilter) $activeFilters[] = 'Status: ' . $statusFilter;
+        if ($dateFrom !== today() || $dateTo !== today()) $activeFilters[] = $dateFrom . ' → ' . $dateTo;
+        ?>
+        <?php if (!empty($activeFilters)): ?>
+            <div class="active-filters no-print">
+                <?php foreach ($activeFilters as $f): ?><span class="fp-pill active"><?= h($f) ?></span><?php endforeach; ?>
+                <a href="/admin/reports.php" class="fp-pill">Clear all</a>
+            </div>
+        <?php endif; ?>
     </div>
+</div>
+
+<div class="print-only print-report-head">
+    <h2><?= config('school_name') ?> — Attendance Report</h2>
+    <p><?= h($dateFrom) ?> → <?= h($dateTo) ?><?= $statusFilter ? ' · ' . h(ucfirst($statusFilter)) : '' ?> · <?= count($records) ?> records</p>
 </div>
 
 <!-- Summary -->
@@ -200,10 +235,10 @@ ob_start();
                         <?php foreach ($records as $r): ?>
                             <tr>
                                 <td><?= format_date($r['attendance_date']) ?></td>
-                                <td><strong><?= h($r['sfirst'] . ' ' . $r['slast']) ?></strong><br><code style="font-size:0.75rem;"><?= h($r['sid']) ?></code></td>
-                                <td><?= h($r['subject_name']) ?></td>
-                                <td><?= h($r['section_name']) ?></td>
-                                <td><?= h($r['tfirst'] . ' ' . $r['tlast']) ?></td>
+                                <td><strong><a href="/admin/student.php?id=<?= (int)$r['student_pk'] ?>"><?= h($r['sfirst'] . ' ' . $r['slast']) ?></a></strong><br><code style="font-size:0.75rem;"><?= h($r['sid']) ?></code></td>
+                                <td><a href="/admin/subject.php?id=<?= (int)$r['subject_id'] ?? 0 ?>"><?= h($r['subject_name']) ?></a></td>
+                                <td><?= h($classLabel($r)) ?></td>
+                                <td><a href="/admin/teachers.php?search=<?= urlencode($r['tfirst'] . ' ' . $r['tlast']) ?>"><?= h($r['tfirst'] . ' ' . $r['tlast']) ?></a></td>
                                 <td><span class="badge <?= $r['status'] === 'present' ? 'badge-success' : ($r['status'] === 'late' ? 'badge-warning' : 'badge-danger') ?>"><?= strtoupper($r['status']) ?></span></td>
                                 <td><?= date('h:i A', strtotime($r['timestamp'])) ?></td>
                             </tr>

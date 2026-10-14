@@ -192,8 +192,9 @@ CREATE TABLE sms_logs (
   attendance_record_id  INT          DEFAULT NULL,
   student_id            INT          NOT NULL,
   sms_date              DATE         NOT NULL,
-  type                  ENUM('morning_in','afternoon_out','absent') NOT NULL DEFAULT 'morning_in',
+  type                  ENUM('morning_in','afternoon_out','absent','cutting') NOT NULL DEFAULT 'morning_in',
   channel               ENUM('sms','email') NOT NULL DEFAULT 'email',
+  dedup_key             INT          NOT NULL DEFAULT 0, -- 0 for daily types; attendance_session id for 'cutting'
   parent_contact        VARCHAR(20)  DEFAULT NULL,
   email_to              VARCHAR(100) DEFAULT NULL,
   message               TEXT         DEFAULT NULL,
@@ -204,7 +205,7 @@ CREATE TABLE sms_logs (
     REFERENCES attendance_records(id) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_sms_student FOREIGN KEY (student_id)
     REFERENCES students(id) ON UPDATE CASCADE,
-  UNIQUE KEY uq_notif_student_type_day_channel (student_id, type, sms_date, channel)
+  UNIQUE KEY uq_notif_student_type_day_channel (student_id, type, sms_date, channel, dedup_key)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
