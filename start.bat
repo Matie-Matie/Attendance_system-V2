@@ -59,7 +59,7 @@ echo  (Apache is NOT needed - this system brings its own server.)
 echo.
 %MYSQL% -h127.0.0.1 -uroot -e "SELECT 1 FROM scpls_v2.users LIMIT 1" >nul 2>nul
 if errorlevel 1 goto full_setup
-%MYSQL% -h127.0.0.1 -uroot -N -e "SELECT COUNT(*) FROM scpls_v2.sms_logs" >nul 2>nul
+%MYSQL% -h127.0.0.1 -uroot -N -e "SELECT type FROM scpls_v2.sms_logs LIMIT 1" >nul 2>nul
 if errorlevel 1 goto half_built
 goto seed_check
 
