@@ -2,6 +2,12 @@
 
 **Smart Class Presence Log-in System** — QR-code based student attendance tracking for **Monico Rarama National High School**, Academic Year 2026–2027.
 
+**Live:** https://scpls.xo.je (deployed 2026-10-14 revision build — see "October 2026 revisions" below).
+
+## October 2026 revisions (alpha feedback)
+
+Bigger readable layout, absent-today dashboards, room + teacher + section schedule-conflict blocking, Teacher Master Schedule view, printable reports with class labels (`G11 ABM · section · Room`), CSV import for students/teachers, kiosk auto-clear, login/logout audit trail, subject/student detail pages, deep-linked records.
+
 Students scan their QR code at a kiosk (or teachers scan in-class). The system resolves the student → their section → the active class session, records present/late, and queues parent email notifications for arrival + dismissal.
 
 ## Features
