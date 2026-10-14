@@ -4,6 +4,8 @@
 
 **Live:** https://scpls.xo.je (deployed 2026-10-14 revision build — see "October 2026 revisions" below).
 
+**Run on your own computer:** install XAMPP (PHP + MySQL), then double-click **`start.bat`** — first run prepares the database itself and opens the browser. Logins are below.
+
 ## October 2026 revisions (alpha feedback)
 
 Bigger readable layout, absent-today dashboards, room + teacher + section schedule-conflict blocking, Teacher Master Schedule view, printable reports with class labels (`G11 ABM · section · Room`), CSV import for students/teachers, kiosk auto-clear, login/logout audit trail, subject/student detail pages, deep-linked records.
