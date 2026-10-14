@@ -26,8 +26,8 @@ if (($_GET['template'] ?? '') === $type) {
     header('Content-Disposition: attachment; filename="import-' . $type . '-template.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // BOM so Excel opens it correctly
-    fputcsv($out, $headers);
-    fputcsv($out, $example);
+    fputcsv($out, $headers, ',', '"', '\\');
+    fputcsv($out, $example, ',', '"', '\\');
     fclose($out);
     exit;
 }
@@ -55,7 +55,7 @@ function import_dry_run(string $type, string $path): array
 
     // Delimiter sniff: comma vs semicolon (Excel-PH often exports semicolons).
     $delim = substr_count($lines[0], ';') > substr_count($lines[0], ',') ? ';' : ',';
-    $header = array_map(fn($h) => mb_strtolower(trim($h)), str_getcsv(array_shift($lines), $delim));
+    $header = array_map(fn($h) => mb_strtolower(trim($h)), str_getcsv(array_shift($lines), $delim, '"', '\\'));
 
     $expected = $type === 'students'
         ? ['student_id', 'first_name', 'last_name', 'grade_level', 'section', 'parent_name', 'parent_contact', 'parent_email']
@@ -86,7 +86,7 @@ function import_dry_run(string $type, string $path): array
     $seenUsers = [];
     foreach ($lines as $i => $line) {
         $lineNo = $i + 2; // +header
-        $cols = str_getcsv($line, $delim);
+        $cols = str_getcsv($line, $delim, '"', '\\');
         $cols = array_pad($cols, count($expected), '');
         $data = array_combine($expected, array_map('trim', $cols));
         $problems = [];
