@@ -162,29 +162,51 @@ ob_start();
                 <a href="<?= $todayReportsUrl ?>" class="text-sm">Open in reports &rarr;</a>
             </div>
             <div class="card-body">
-                <div class="rate-ring">
-                    <div class="ring" style="--val: <?= $onTimeRate ?>;">
-                        <span class="ring-num"><?= $onTimeRate ?>%</span>
-                        <span class="ring-cap">On&nbsp;time</span>
-                    </div>
-                    <div class="flex-1">
-                        <?php if ($logged === 0): ?>
+                <?php if ($logged === 0): ?>
+                    <div class="rate-ring">
+                        <div class="ring" style="--val: 0;">
+                            <span class="ring-num">0%</span>
+                            <span class="ring-cap">On&nbsp;time</span>
+                        </div>
+                        <div class="flex-1">
                             <p class="text-muted text-sm">No attendance logged yet today. Numbers appear as teachers scan students in.</p>
-                        <?php else: ?>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="att-today" id="attToday">
+                        <a class="ring ring-link" href="<?= $todayReportsUrl ?>"
+                           data-status="on-time" data-label="On time" data-count="<?= $present ?>" data-pct="<?= $onTimeRate ?>"
+                           aria-label="<?= $onTimeRate ?>% on time today — open today's report">
+                            <span class="ring-num"><?= $onTimeRate ?>%</span>
+                            <span class="ring-cap">On&nbsp;time</span>
+                        </a>
+
+                        <div class="flex-1">
                             <div class="breakdown">
-                                <span class="seg-present" style="width: <?= $segP ?>%"></span>
-                                <span class="seg-late" style="width: <?= $segL ?>%"></span>
-                                <span class="seg-absent" style="width: <?= $segA ?>%"></span>
+                                <a class="seg seg-present" href="<?= $todayReportsUrl ?>&status=present"
+                                   style="width: <?= $segP ?>%" data-status="present" data-label="Present" data-count="<?= $present ?>" data-pct="<?= $segP ?>"
+                                   aria-label="<?= $present ?> present — open the present-only report"></a>
+                                <a class="seg seg-late" href="<?= $todayReportsUrl ?>&status=late"
+                                   style="width: <?= $segL ?>%" data-status="late" data-label="Late" data-count="<?= $late ?>" data-pct="<?= $segL ?>"
+                                   aria-label="<?= $late ?> late — open the late-only report"></a>
+                                <a class="seg seg-absent" href="<?= $todayReportsUrl ?>&status=absent"
+                                   style="width: <?= $segA ?>%" data-status="absent" data-label="Absent" data-count="<?= $absent ?>" data-pct="<?= $segA ?>"
+                                   aria-label="<?= $absent ?> absent — open the absent-only report"></a>
                             </div>
                             <div class="breakdown-legend">
-                                <span><i class="dot-present"></i><?= $present ?> Present</span>
-                                <span><i class="dot-late"></i><?= $late ?> Late</span>
-                                <span><i class="dot-absent"></i><?= $absent ?> Absent</span>
+                                <a class="legend-link" href="<?= $todayReportsUrl ?>&status=present"
+                                   data-status="present" data-label="Present" data-count="<?= $present ?>" data-pct="<?= $segP ?>"><i class="dot-present"></i><?= $present ?> Present</a>
+                                <a class="legend-link" href="<?= $todayReportsUrl ?>&status=late"
+                                   data-status="late" data-label="Late" data-count="<?= $late ?>" data-pct="<?= $segL ?>"><i class="dot-late"></i><?= $late ?> Late</a>
+                                <a class="legend-link" href="<?= $todayReportsUrl ?>&status=absent"
+                                   data-status="absent" data-label="Absent" data-count="<?= $absent ?>" data-pct="<?= $segA ?>"><i class="dot-absent"></i><?= $absent ?> Absent</a>
                             </div>
                             <p class="text-muted text-sm" style="margin:0.65rem 0 0;"><?= $logged ?> scan<?= $logged === 1 ? '' : 's' ?> across <?= $todaySessions ?> session<?= $todaySessions === 1 ? '' : 's' ?> today &middot; <?= date('l, M j') ?></p>
-                        <?php endif; ?>
+                        </div>
+
+                        <span class="meter-tip att-tip" id="attTip" role="status"></span>
                     </div>
-                </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -351,6 +373,47 @@ ob_start();
     </div>
 </div>
 </div>
+
+<script>
+(function () {
+    var wrap = document.getElementById('attToday');
+    if (!wrap) return;
+    var tip = document.getElementById('attTip');
+    var segs = Array.prototype.slice.call(wrap.querySelectorAll('.seg'));
+    var items = Array.prototype.slice.call(wrap.querySelectorAll('[data-status]'));
+
+    function clear() {
+        segs.forEach(function (s) { s.classList.remove('is-active', 'is-dim'); });
+        if (tip) tip.style.opacity = 0;
+    }
+
+    function show(el) {
+        var status = el.getAttribute('data-status');
+        var empty = el.getAttribute('data-count') === '0';
+        segs.forEach(function (s) {
+            var on = s.getAttribute('data-status') === status;
+            s.classList.toggle('is-active', on && !empty);
+            s.classList.toggle('is-dim', status !== 'on-time' && !empty && !on);
+        });
+        if (!tip) return;
+        tip.textContent = el.getAttribute('data-count') + ' ' + el.getAttribute('data-label').toLowerCase()
+            + ' \u00b7 ' + el.getAttribute('data-pct') + "% of today's scans";
+        var r = el.getBoundingClientRect();
+        var w = wrap.getBoundingClientRect();
+        var centre = r.left - w.left + (r.width / 2);
+        var half = (tip.offsetWidth || 160) / 2;
+        tip.style.left = Math.max(half + 2, Math.min(w.width - half - 2, centre)) + 'px';
+        tip.style.opacity = 1;
+    }
+
+    items.forEach(function (el) {
+        el.addEventListener('mouseenter', function () { show(el); });
+        el.addEventListener('focus', function () { show(el); });
+        el.addEventListener('mouseleave', clear);
+        el.addEventListener('blur', clear);
+    });
+})();
+</script>
 
 <?php
 $slot = ob_get_clean();

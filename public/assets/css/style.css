@@ -2462,3 +2462,56 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
 .dayline-scale > span:not(.dayline-live) { transition: opacity 0.16s ease; }
 .dayline:hover .dayline-scale > span:not(.dayline-live) { opacity: 0; }
 .dayline:hover .dayline-live { opacity: 1; }
+
+/* --- Today's Attendance: every segment is a link -------------------- */
+.att-today {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+}
+.att-today .breakdown { height: 16px; }
+.att-today .seg {
+    display: block;
+    height: 100%;
+    text-decoration: none;
+    transition: opacity 0.16s ease, filter 0.16s ease;
+}
+.att-today .seg.is-dim { opacity: 0.28; }
+.att-today .seg.is-active { filter: brightness(1.08) saturate(1.12); }
+.att-today .seg:focus-visible { outline: 2px solid #fff; outline-offset: -3px; }
+
+.att-today .breakdown-legend { font-size: 0.85rem; gap: 1.05rem; }
+.att-today .breakdown-legend a {
+    color: inherit;
+    text-decoration: none;
+    padding-bottom: 1px;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s ease;
+}
+.att-today .breakdown-legend a:hover { border-bottom-color: currentColor; }
+.att-today .breakdown-legend a:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+    border-radius: 3px;
+}
+
+/* the on-time ring is a link too */
+.ring-link {
+    text-decoration: none;
+    color: inherit;
+    border-radius: 50%;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.ring-link:hover { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(192, 0, 0, 0.08); }
+.ring-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 5px; }
+
+/* tooltip shared with the meters, but centred over the hovered segment */
+.att-tip {
+    right: auto;
+    left: 0;
+    bottom: calc(100% + 10px);
+    transform: translateX(-50%);
+}
+.att-tip::after { right: auto; left: 50%; margin-left: -5px; }
