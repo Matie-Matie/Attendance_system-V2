@@ -105,6 +105,45 @@ if ($currentClass) {
     $totalStudents = $stmt->fetchColumn();
 }
 
+// Absences recorded today in this teacher's own classes.
+// Rows are written when a session is closed (end_session marks every unscanned student absent).
+$absentToday = [];
+$closedToday = 0;
+try {
+    $stmt = db()->prepare("
+        SELECT st.id AS id, st.student_id AS sid, st.first_name, st.last_name,
+               sub.name AS subject_name, sec.name AS section_name, se.room, se.start_time
+        FROM attendance_records ar
+        JOIN attendance_sessions ses ON ar.attendance_session_id = ses.id
+        JOIN schedule_entries se ON ses.schedule_entry_id = se.id
+        JOIN students st ON ar.student_id = st.id
+        JOIN subjects sub ON se.subject_id = sub.id
+        JOIN sections sec ON se.section_id = sec.id
+        WHERE se.teacher_id = ? AND ar.status = 'absent' AND ses.attendance_date = CURDATE()
+        ORDER BY se.start_time ASC, st.last_name ASC, st.first_name ASC
+    ");
+    $stmt->execute([$teacherId]);
+    $absentToday = $stmt->fetchAll();
+
+    $stmt = db()->prepare("
+        SELECT COUNT(*) FROM attendance_sessions ses
+        JOIN schedule_entries se ON ses.schedule_entry_id = se.id
+        WHERE se.teacher_id = ? AND ses.attendance_date = CURDATE() AND ses.status = 'closed'
+    ");
+    $stmt->execute([$teacherId]);
+    $closedToday = (int) $stmt->fetchColumn();
+} catch (Throwable $e) {
+    // Absences table may be mid-migration on a fresh install — never break the dashboard.
+    $absentToday = [];
+    $closedToday = 0;
+}
+
+$absentGroups = [];
+foreach ($absentToday as $a) {
+    $key = $a['subject_name'] . ' · ' . $a['section_name'] . ' · ' . format_time($a['start_time']);
+    $absentGroups[$key][] = $a;
+}
+
 
 ob_start();
 
@@ -128,6 +167,7 @@ $dayProgress = max(0, min(100, round(($nowMinutes - 7*60) / (10*60) * 100)));
                 <span class="tha-metric"><span class="tha-dot" style="background: var(--success);"></span> <b><?= $currentClass ? '1' : '0' ?></b> now</span>
                 <span class="tha-metric"><span class="tha-dot" style="background: var(--warning);"></span> <b><?= $nextClass ? '1' : '0' ?></b> next</span>
                 <?php if ($currentClass): ?><span class="tha-metric"><span class="tha-dot" style="background: var(--info);"></span> <b><?= $totalStudents ?></b> students</span><?php endif; ?>
+                <?php if (count($absentToday) > 0): ?><span class="tha-metric"><span class="tha-dot" style="background: var(--danger);"></span> <b><?= count($absentToday) ?></b> absent today</span><?php endif; ?>
             </div>
         </div>
         <div class="tha-clock-arch" id="system-clock">
@@ -241,6 +281,49 @@ $dayProgress = max(0, min(100, round(($nowMinutes - 7*60) / (10*60) * 100)));
                     </div>
                 <?php elseif (!$nextClass): ?>
                     <div class="card" style="border-radius:18px; padding:1rem; text-align:center; color: var(--text-muted); font-size:0.85rem;">No more classes today — you’re clear.</div>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <!-- Absent today — this teacher's own classes only -->
+    <?php if (count($absentToday) > 0 || $closedToday > 0): ?>
+        <div class="card absent-today" style="margin-top:1.25rem;">
+            <div class="card-header">
+                <h3>
+                    Absent Today
+                    <?php if (count($absentToday) > 0): ?><span class="badge badge-danger" style="margin-left:0.35rem;"><?= count($absentToday) ?></span><?php else: ?><span class="badge" style="margin-left:0.35rem;">0</span><?php endif; ?>
+                </h3>
+                <a class="text-sm" href="/teacher/reports.php?date_from=<?= date('Y-m-d') ?>&date_to=<?= date('Y-m-d') ?>&status=absent">Open in reports →</a>
+            </div>
+            <div class="card-body">
+                <?php if (count($absentToday) === 0): ?>
+                    <div class="absent-empty">
+                        <span class="absent-empty-dot"></span>
+                        <div>
+                            <strong>No absences today</strong>
+                            <span><?= $closedToday ?> class<?= $closedToday === 1 ? '' : 'es' ?> closed — every scanned class was complete.</span>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="absent-groups">
+                        <?php foreach ($absentGroups as $groupLabel => $students): ?>
+                            <div class="absent-group">
+                                <div class="absent-group-head">
+                                    <strong><?= h($groupLabel) ?></strong>
+                                    <span><?= count($students) ?> absent</span>
+                                </div>
+                                <div class="absent-names">
+                                    <?php foreach ($students as $st): ?>
+                                        <span class="absent-name">
+                                            <?= h($st['first_name'] . ' ' . $st['last_name']) ?>
+                                            <code><?= h($st['sid']) ?></code>
+                                        </span>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>

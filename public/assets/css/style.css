@@ -2073,3 +2073,149 @@ html { font-size: 17px; }
     a { color: #000; text-decoration: none; }
     .badge { border: 1px solid #666; background: none !important; color: #000 !important; }
 }
+
+/* ============================================================
+   v2.3 — 2026-10-21 · teacher feedback round
+   1. One more readability step up (18px base)
+   2. Zoom tolerance: reflow at 125%/150% instead of clipping
+   3. Absent Today panel (teacher dashboard)
+   4. Full system name on the login page
+   ============================================================ */
+
+/* --- 1. readability ------------------------------------------------ */
+html { font-size: 18px; }
+.text-sm { font-size: 0.9rem; }
+.text-xs { font-size: 0.8rem; }
+.table { font-size: 0.92rem; }
+
+/* The legacy compact layer was shrinking text to fit. Keep the density,
+   drop the micro-type — this is what made the dashboard feel small. */
+.dashboard-compact .feed-item { padding: 0.55rem 0; gap: 0.65rem; }
+.dashboard-compact .feed-main strong { font-size: 0.92rem; }
+.dashboard-compact .feed-main span { font-size: 0.8rem; }
+.dashboard-compact .feed-time { font-size: 0.8rem; }
+.dashboard-compact .prog-track { height: 8px; }
+.dashboard-compact .badge { font-size: 0.72rem; }
+
+/* --- 2. zoom tolerance --------------------------------------------- */
+/* At 125% browser zoom a 1366px screen behaves like ~1093px. Reflow there
+   instead of squeezing, so nobody has to zoom out to read the page. */
+@media (max-width: 1400px) {
+    .sidebar { width: 236px; }
+    .main-content {
+        margin-left: 236px;
+        width: calc(100vw - 236px);
+        padding: 2rem 1.6rem;
+    }
+    .stats-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+}
+
+@media (max-width: 1200px) {
+    .dash-grid { grid-template-columns: 1fr; }
+    .page-intro { grid-template-columns: 1fr; }
+    .page-header { flex-wrap: wrap; gap: 0.75rem; }
+    .summary-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+}
+
+/* --- 3. Absent Today (teacher dashboard) ---------------------------- */
+.absent-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+.absent-group {
+    border-radius: 16px;
+    background: var(--danger-light);
+    padding: 0.9rem 1rem;
+    min-width: 0;
+}
+.absent-group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.6rem;
+}
+.absent-group-head strong { line-height: 1.3; }
+.absent-group-head span { color: var(--danger); font-weight: 700; white-space: nowrap; }
+.absent-names { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.absent-name {
+    background: var(--card-bg);
+    border-radius: 999px;
+    padding: 0.32rem 0.72rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.absent-name code { color: var(--text-muted); font-size: 0.72rem; margin-left: 0.3rem; font-weight: 500; }
+.absent-empty { display: flex; align-items: center; gap: 0.75rem; }
+.absent-empty-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--success); flex-shrink: 0;
+}
+.absent-empty strong { display: block; font-size: 0.95rem; }
+.absent-empty span { font-size: 0.85rem; color: var(--text-muted); }
+
+/* Report summary cards are links now */
+a.summary-card { color: inherit; text-decoration: none; transition: var(--transition); }
+a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px); }
+
+/* --- 4. Login page identity ---------------------------------------- */
+.login-hero-kicker {
+    display: block;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.3rem;
+}
+.login-hero-brand h2 { font-size: 1.02rem; line-height: 1.15; }
+
+/* --- 5. Admin dashboard: stop forcing "fit in one screen" ----------
+   The compact layer pinned the dashboard to the viewport height with equal
+   flex rows, so at an 18px base the cards overflowed their grid areas and
+   overlapped. Let it flow, keep the density, keep the type readable. */
+.dashboard-compact {
+    height: auto;
+    min-height: 0;
+    gap: 1rem;
+}
+.dashboard-compact .dash-grid { flex: 0 0 auto; }
+.dashboard-compact .dash-grid .card { height: auto; min-height: 0; }
+.dashboard-compact .card-body { justify-content: flex-start; }
+.dashboard-compact .card-body.scroll-y { max-height: 280px; }
+
+.dashboard-compact .page-header { margin-bottom: 1rem; }
+.dashboard-compact .page-header h1 { font-size: 1.6rem; }
+.dashboard-compact .stat-icon { width: 42px; height: 42px; border-radius: 12px; }
+.dashboard-compact .stat-number { font-size: 1.5rem; }
+.dashboard-compact .stat-label { font-size: 0.8rem; }
+.dashboard-compact .card-header { padding: 0.85rem 1.1rem; min-height: 46px; }
+.dashboard-compact .card-header h3 { font-size: 1.02rem; }
+.dashboard-compact .ring { width: 86px; height: 86px; }
+.dashboard-compact .ring .ring-num { font-size: 1.1rem; }
+.dashboard-compact .breakdown { height: 9px; }
+.dashboard-compact .breakdown-legend { font-size: 0.78rem; }
+.dashboard-compact .prog-head { font-size: 0.82rem; }
+.dashboard-compact .quick-link { padding: 0.6rem 0.7rem; font-size: 0.8rem; }
+.dashboard-compact .quick-link svg { width: 16px; height: 16px; }
+.dashboard-compact .summary-card { padding: 0.8rem 0.7rem; }
+.dashboard-compact .summary-card .number { font-size: 1.4rem; }
+.dashboard-compact .summary-card .label { font-size: 0.75rem; }
+.dashboard-compact .empty-state { padding: 1.25rem !important; }
+.dashboard-compact .empty-state h3 { font-size: 1rem; }
+.dashboard-compact .empty-state p { font-size: 0.85rem; }
+
+.main-content:has(.dashboard-compact) {
+    width: auto;
+    max-width: none !important;
+    padding: 1.5rem 1.75rem;
+}
+
+/* Cards size to their content instead of stretching to the tallest sibling */
+.dashboard-compact .dash-grid { align-items: start; }
+
+/* Lists on the dashboard grow instead of being cut mid-row */
+.dashboard-compact .card-body.scroll-y { max-height: none; overflow-y: visible; }

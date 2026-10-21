@@ -58,14 +58,26 @@ $records = $stmt->fetchAll();
 
 // "G11 HUMSS" style class label from grade level + strand.
 $classLabel = function (array $r): string {
-    $g = preg_replace('/[^0-9]/', '', (string) ($r['grade_level'] ?? ''));
-    $bits = [];
-    if ($g !== '' || ($r['track_strand'] ?? '') !== '') {
-        $bits[] = trim('G' . $g . ' ' . ($r['track_strand'] ?? ''));
+    $grade   = preg_replace('/[^0-9]/', '', (string) ($r['grade_level'] ?? ''));
+    $strand  = trim((string) ($r['track_strand'] ?? ''));
+    $section = trim((string) ($r['section_name'] ?? ''));
+
+    // "Grade 11 - ABM" -> "ABM" so the grade is never printed twice.
+    $stripped = preg_replace('/^grade\s*\d+\s*[-–—:]?\s*/i', '', $section);
+    $short    = ($stripped !== null && $stripped !== '') ? $stripped : $section;
+    $head     = trim(($grade !== '' ? 'G' . $grade : '') . ' ' . $strand);
+
+    $label = $head !== '' ? $head : $short;
+    if ($head !== '' && $short !== '' && mb_stripos($head, $short) === false) {
+        $label .= ' · ' . $short;
     }
-    $bits[] = $r['section_name'];
-    if (!empty($r['room'])) $bits[] = 'Room ' . $r['room'];
-    return implode(' · ', $bits);
+
+    if (!empty($r['room'])) {
+        $room   = trim((string) $r['room']);
+        $label .= ' · ' . (preg_match('/^(room|rm\.?)\s/i', $room) ? $room : 'Room ' . $room);
+    }
+
+    return $label;
 };
 
 // Summary stats

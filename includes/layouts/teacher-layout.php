@@ -15,7 +15,7 @@ $currentPage = $currentPage ?? '';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= h($pageTitle ?? 'Dashboard') ?> | <?= config('short_name') ?></title>
+    <title><?= h($pageTitle ?? 'Dashboard') ?> | <?= config('name') ?> — <?= config('school_short') ?></title>
     <script>
         (function () {
             var d = document.documentElement;
@@ -29,7 +29,7 @@ $currentPage = $currentPage ?? '';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/style.css?v=20261014">
+    <link rel="stylesheet" href="/assets/css/style.css?v=20261021">
 </head>
 <body>
     <div class="layout">
@@ -39,7 +39,7 @@ $currentPage = $currentPage ?? '';
                 <div class="logo"><img src="/assets/images/logo.jpg" alt="<?= config('short_name') ?> logo"></div>
                 <div>
                     <h3><?= config('short_name') ?></h3>
-                    <div class="subtitle">Teacher Portal</div>
+                    <div class="subtitle"><?= config('school_short') ?> · Teacher</div>
                 </div>
             </div>
             <nav class="sidebar-nav">

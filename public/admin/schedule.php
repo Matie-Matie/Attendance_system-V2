@@ -2,7 +2,7 @@
 /**
  * Admin - Master Schedule Management
  */
-$pageTitle = 'Master Schedule';
+$pageTitle = 'Teachers Master Schedule';
 $currentPage = 'schedule';
 $slot = '';
 

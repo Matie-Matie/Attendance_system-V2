@@ -2,13 +2,22 @@
 
 **Smart Class Presence Log-in System** — QR-code based student attendance tracking for **Monico Rarama National High School**, Academic Year 2026–2027.
 
-**Live:** https://scpls.xo.je (deployed 2026-10-14 revision build — see "October 2026 revisions" below).
+**Runs on your own PC:** install XAMPP (PHP + MySQL), then double-click **`start.bat`** — first run prepares the database itself and opens http://127.0.0.1:8000. Logins are below.
 
-**Run on your own computer:** install XAMPP (PHP + MySQL), then double-click **`start.bat`** — first run prepares the database itself and opens the browser. Logins are below.
+> **Updates:** download the latest copy of this repo and run `start.bat` again. Your students, teachers and attendance stay in MySQL — updating the files never deletes them.
+>
+> (Older web demo: https://scpls.xo.je — 2026-10-14 build. The school now runs it locally.)
 
-## October 2026 revisions (alpha feedback)
+## October 2026 revisions (teacher feedback, round 2 — 2026-10-21)
 
-Bigger readable layout, absent-today dashboards, room + teacher + section schedule-conflict blocking, Teacher Master Schedule view, printable reports with class labels (`G11 ABM · section · Room`), CSV import for students/teachers, kiosk auto-clear, login/logout audit trail, subject/student detail pages, deep-linked records.
+- **Full name on the front page** — the login page, browser tab and sidebars now say *Smart Class Presence Log-in System · Monico Rarama National High School* instead of just "SCPLS".
+- **Bigger, readable scale** — base type is now 18px (was 17px). The old admin-dashboard "compact" layer used to shrink text to 7–10px to fit one screen; it no longer shrinks, so the dashboard is taller and readable instead of squeezed.
+- **No more zooming** — layouts reflow at 125% / 150% browser zoom (≈1093px and ≈911px wide) instead of clipping. Nothing is hidden horizontally; wide tables scroll inside their own card.
+- **Absences are visible** — teachers get an **Absent Today** panel on the dashboard (their own classes only, grouped per class) plus an **Absent** stat card, an absent filter and absent rows in print/CSV on their reports page.
+- **"Teachers Master Schedule"** — the menu item and page title now say the full name.
+- **Class labels** — reports print one clean label (`G11 HUMSS · RM 201`); the grade was previously printed twice and rooms read "Room RM 201".
+
+Previous round (2026-10-14): bigger readable layout, absent-today dashboards, room + teacher + section schedule-conflict blocking, Teachers Master Schedule view, printable reports with class labels, CSV import for students/teachers, kiosk auto-clear, login/logout audit trail, subject/student detail pages, deep-linked records.
 
 Students scan their QR code at a kiosk (or teachers scan in-class). The system resolves the student → their section → the active class session, records present/late, and queues parent email notifications for arrival + dismissal.
 

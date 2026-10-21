@@ -18,6 +18,13 @@ $dateTo = $_GET['date_to'] ?? today();
 $sectionFilter = (int)($_GET['section_id'] ?? 0);
 $export = $_GET['export'] ?? '';
 
+// Status filter — whitelisted, never interpolated raw into SQL.
+$statusFilter = (string)($_GET['status'] ?? '');
+$statusAllowed = ['present', 'late', 'absent'];
+if (!in_array($statusFilter, $statusAllowed, true)) {
+    $statusFilter = '';
+}
+
 // Get teacher's sections
 $stmt = db()->prepare("
     SELECT DISTINCT sec.id, sec.name FROM schedule_entries se
@@ -33,6 +40,7 @@ $where = ["se.teacher_id = ?", "DATE(ar.timestamp) BETWEEN ? AND ?"];
 $params = [$teacherId, $dateFrom, $dateTo];
 
 if ($sectionFilter) { $where[] = "se.section_id = ?"; $params[] = $sectionFilter; }
+if ($statusFilter)  { $where[] = "ar.status = ?";     $params[] = $statusFilter; }
 
 $whereClause = implode(' AND ', $where);
 
@@ -55,18 +63,42 @@ $stmt->execute($params);
 $records = $stmt->fetchAll();
 
 $classLabel = function (array $r): string {
-    $g = preg_replace('/[^0-9]/', '', (string) ($r['grade_level'] ?? ''));
-    $bits = [];
-    if ($g !== '' || ($r['track_strand'] ?? '') !== '') {
-        $bits[] = trim('G' . $g . ' ' . ($r['track_strand'] ?? ''));
+    $grade   = preg_replace('/[^0-9]/', '', (string) ($r['grade_level'] ?? ''));
+    $strand  = trim((string) ($r['track_strand'] ?? ''));
+    $section = trim((string) ($r['section_name'] ?? ''));
+
+    // "Grade 11 - ABM" -> "ABM" so the grade is never printed twice.
+    $stripped = preg_replace('/^grade\s*\d+\s*[-–—:]?\s*/i', '', $section);
+    $short    = ($stripped !== null && $stripped !== '') ? $stripped : $section;
+    $head     = trim(($grade !== '' ? 'G' . $grade : '') . ' ' . $strand);
+
+    $label = $head !== '' ? $head : $short;
+    if ($head !== '' && $short !== '' && mb_stripos($head, $short) === false) {
+        $label .= ' · ' . $short;
     }
-    $bits[] = $r['section_name'];
-    if (!empty($r['room'])) $bits[] = 'Room ' . $r['room'];
-    return implode(' · ', $bits);
+
+    if (!empty($r['room'])) {
+        $room   = trim((string) $r['room']);
+        $label .= ' · ' . (preg_match('/^(room|rm\.?)\s/i', $room) ? $room : 'Room ' . $room);
+    }
+
+    return $label;
 };
 
 $presentCount = count(array_filter($records, fn($r) => $r['status'] === 'present'));
 $lateCount = count(array_filter($records, fn($r) => $r['status'] === 'late'));
+$absentCount = count(array_filter($records, fn($r) => $r['status'] === 'absent'));
+
+// Build a URL that keeps the current filters, optionally overriding one key.
+$reportUrl = function (array $overrides = []) use ($dateFrom, $dateTo, $sectionFilter, $statusFilter): string {
+    $q = array_filter(array_merge([
+        'date_from'  => $dateFrom,
+        'date_to'    => $dateTo,
+        'section_id' => $sectionFilter ?: null,
+        'status'     => $statusFilter ?: null,
+    ], $overrides), fn($v) => $v !== null && $v !== '' && $v !== 0);
+    return '/teacher/reports.php' . ($q ? '?' . http_build_query($q) : '');
+};
 
 // CSV Export
 if ($export === 'csv') {
@@ -102,6 +134,7 @@ $totalRecords = count($records);
         <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><strong><?= $totalRecords ?></strong><span>Total</span></div></div>
         <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><strong><?= $presentCount ?></strong><span>Present</span></div></div>
         <div class="mini-stat"><div class="ms-icon" style="background: var(--warning-light); color: #B07D16;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><strong><?= $lateCount ?></strong><span>Late</span></div></div>
+        <div class="mini-stat"><div class="ms-icon" style="background: var(--danger-light); color: var(--danger);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><strong><?= $absentCount ?></strong><span>Absent</span></div></div>
     </div>
 </div>
 
@@ -109,8 +142,8 @@ $totalRecords = count($records);
     <div class="card-header">
         <h3>Filter My Reports</h3>
         <div class="flex gap-1">
-            <button type="button" class="btn btn-sm btn-outline" onclick="window.print()">Print</button>
-            <a href="/teacher/reports.php?export=csv&date_from=<?=$dateFrom?>&date_to=<?=$dateTo?>&section_id=<?=$sectionFilter?>"
+            <button type="submit" class="btn btn-sm btn-outline" onclick="window.print()">Print</button>
+            <a href="/teacher/reports.php?export=csv&date_from=<?=$dateFrom?>&date_to=<?=$dateTo?>&section_id=<?=$sectionFilter?>&status=<?=$statusFilter?>"
                class="btn btn-sm btn-primary <?=empty($records)?'disabled':''?>">Export CSV</a>
         </div>
     </div>
@@ -133,12 +166,22 @@ $totalRecords = count($records);
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select name="status" class="form-control">
+                    <option value="">All statuses</option>
+                    <option value="present" <?=$statusFilter==='present'?'selected':''?>>Present only</option>
+                    <option value="late" <?=$statusFilter==='late'?'selected':''?>>Late only</option>
+                    <option value="absent" <?=$statusFilter==='absent'?'selected':''?>>Absent only</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary btn-sm">Apply</button>
         </form>
-        <?php if ($sectionFilter): ?>
+        <?php if ($sectionFilter || $statusFilter): ?>
             <div class="active-filters no-print">
-                <span class="fp-pill active">Section filtered</span>
-                <a href="/teacher/reports.php?date_from=<?=$dateFrom?>&date_to=<?=$dateTo?>" class="fp-pill">Clear</a>
+                <?php if ($sectionFilter): ?><span class="fp-pill active">Section filtered</span><?php endif; ?>
+                <?php if ($statusFilter): ?><span class="fp-pill active"><?= ucfirst(h($statusFilter)) ?> only</span><?php endif; ?>
+                <a href="<?= h($reportUrl(['section_id' => null, 'status' => null])) ?>" class="fp-pill">Clear all</a>
             </div>
         <?php endif; ?>
     </div>
@@ -146,12 +189,13 @@ $totalRecords = count($records);
 
 <div class="print-only print-report-head">
     <h2><?= config('school_name') ?> — My Attendance Report</h2>
-    <p><?= h($dateFrom) ?> → <?= h($dateTo) ?> · <?= count($records) ?> records</p>
+    <p><?= h($dateFrom) ?> → <?= h($dateTo) ?> · <?= count($records) ?> records · <?= $presentCount ?> present · <?= $lateCount ?> late · <?= $absentCount ?> absent<?= $statusFilter ? ' · filtered: ' . h($statusFilter) . ' only' : '' ?></p>
 </div>
 
 <div class="summary-grid">
-    <div class="summary-card is-present"><div class="number"><?= $presentCount ?></div><div class="label">Present</div></div>
-    <div class="summary-card is-late"><div class="number"><?= $lateCount ?></div><div class="label">Late</div></div>
+    <a class="summary-card is-present" style="text-decoration:none;" href="<?= h($reportUrl(['status' => 'present'])) ?>"><div class="number"><?= $presentCount ?></div><div class="label">Present</div></a>
+    <a class="summary-card is-late" style="text-decoration:none;" href="<?= h($reportUrl(['status' => 'late'])) ?>"><div class="number"><?= $lateCount ?></div><div class="label">Late</div></a>
+    <a class="summary-card is-absent" style="text-decoration:none;" href="<?= h($reportUrl(['status' => 'absent'])) ?>"><div class="number"><?= $absentCount ?></div><div class="label">Absent</div></a>
     <div class="summary-card"><div class="number"><?= count($records) ?></div><div class="label">Total</div></div>
 </div>
 

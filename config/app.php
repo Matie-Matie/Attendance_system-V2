@@ -6,10 +6,11 @@ return [
     'name'            => 'Smart Class Presence Log-in System',
     'short_name'      => 'SCPLS',
     'school_name'     => 'Monico Rarama National High School',
+    'school_short'    => 'MRNHS',
     'academic_year'   => '2026-2027',
     'timezone'        => 'Asia/Manila',
     'debug'           => false,  // production — no error output to visitors
-    'version'         => '2.0.0',
+    'version'         => '2.3.0',
 
     // Attendance windows (minutes before/after start time)
     'attendance' => [

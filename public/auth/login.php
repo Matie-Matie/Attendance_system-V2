@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | <?= config('short_name') ?></title>
+    <title>Login | <?= config('name') ?> — <?= config('school_short') ?></title>
     <script>
         (function () {
             var d = document.documentElement;
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,700;9..144,1,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/style.css?v=20261014">
+    <link rel="stylesheet" href="/assets/css/style.css?v=20261021">
 </head>
 <body class="login-page split">
     <div class="login-split fade-in">
@@ -58,14 +58,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="login-hero-top">
                 <div class="login-hero-logo"><img src="/assets/images/logo.jpg" alt="<?= config('short_name') ?> logo"></div>
                 <div class="login-hero-brand">
-                    <h2><?= config('short_name') ?></h2>
-                    <p><?= config('school_name') ?></p>
+                    <span class="login-hero-kicker"><?= config('school_name') ?></span>
+                    <h2><?= config('name') ?></h2>
                 </div>
             </div>
 
             <div class="login-hero-main">
                 <h1>Attendance, <br><em>perfectly kept.</em></h1>
-                <p class="hero-lead">Biometric + QR presence for Senior High. No sheets, no queues — just tap, scan, and go. Built for teachers who want to teach.</p>
+                <p class="hero-lead">QR presence for Senior High. No sheets, no queues — just tap, scan, and go. Built for teachers who want to teach.</p>
 
                 <div class="login-hero-stats">
                     <div class="hero-stat">
@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="login-card architech">
                 <div class="login-header">
                     <h1>Welcome back</h1>
-                    <p>Sign in to <?= config('short_name') ?> — Admin or Teacher</p>
+                    <p>Sign in to the Attendance System — Admin or Teacher</p>
                 </div>
 
                 <?php if ($error): ?>
