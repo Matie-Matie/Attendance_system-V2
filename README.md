@@ -15,7 +15,8 @@
 - **No more zooming** — layouts reflow at 125% / 150% browser zoom (≈1093px and ≈911px wide) instead of clipping. Nothing is hidden horizontally; wide tables scroll inside their own card.
 - **Absences are visible** — teachers get an **Absent Today** panel on the dashboard (their own classes only, grouped per class) plus an **Absent** stat card, an absent filter and absent rows in print/CSV on their reports page.
 - **"Teachers Master Schedule"** — the menu item and page title now say the full name.
-- **Progress bars redesigned** — the teacher "Day progress" line is now a school-day timeline (7 AM → 5 PM with a live "now" marker), and the admin "By Section" bars are colour-coded meters (green ≥90%, amber ≥70%, red below) with the percentage called out.
+- **Progress bars redesigned** — the teacher "Day progress" line is now a school-day timeline (7 AM → 5 PM with a live "now" marker; hover it for the current time and time left), and the admin "By Section" bars are colour-coded meters (green ≥90%, amber ≥70%, red below) that show the present/late/absent breakdown on hover and open that section's report when clicked.
+- **Dashboard layout fixed** — cards now sit in two independent columns, so short cards no longer leave holes and tall lists no longer stretch their neighbours; long lists scroll inside their own card.
 - **Class labels** — reports print one clean label (`G11 HUMSS · RM 201`); the grade was previously printed twice and rooms read "Room RM 201".
 
 Previous round (2026-10-14): bigger readable layout, absent-today dashboards, room + teacher + section schedule-conflict blocking, Teachers Master Schedule view, printable reports with class labels, CSV import for students/teachers, kiosk auto-clear, login/logout audit trail, subject/student detail pages, deep-linked records.

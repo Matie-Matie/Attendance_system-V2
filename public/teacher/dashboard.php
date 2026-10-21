@@ -182,7 +182,10 @@ $dayProgress = max(0, min(100, round(($nowMinutes - 7*60) / (10*60) * 100)));
                 <div class="dayline-track">
                     <span class="dayline-fill" id="dayline-fill" style="--p: <?= $dayProgress ?>%"></span>
                 </div>
-                <div class="dayline-scale"><span>7 AM</span><span>12 NN</span><span>5 PM</span></div>
+                <div class="dayline-scale">
+                    <span>7 AM</span><span>12 NN</span><span>5 PM</span>
+                    <span class="dayline-live" id="dayline-tip"><?= $dayProgress ?>% of the school day</span>
+                </div>
             </div>
         </div>
     </div>
@@ -212,6 +215,16 @@ $dayProgress = max(0, min(100, round(($nowMinutes - 7*60) / (10*60) * 100)));
             const elP = document.getElementById('dayline-pct');
             if (elF) elF.style.setProperty('--p', p + '%');
             if (elP) elP.textContent = p + '%';
+
+            const elTip = document.getElementById('dayline-tip');
+            if (elTip) {
+                const hm = (h % 12 || 12) + ':' + String(m).padStart(2, '0') + (h < 12 ? ' AM' : ' PM');
+                const leftMin = Math.max(0, 600 - (mins - 420));
+                elTip.textContent = 'Now ' + hm + ' \u00b7 ' + p + '%'
+                    + (leftMin > 0
+                        ? ' \u00b7 ' + Math.floor(leftMin / 60) + 'h ' + (leftMin % 60) + 'm left'
+                        : ' \u00b7 day over');
+            }
         }
         setInterval(updateClock, 1000);
         updateClock();

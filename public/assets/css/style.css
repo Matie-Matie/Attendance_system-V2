@@ -2316,6 +2316,7 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
 .sec-meter-val b { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.02em; }
 .sec-meter-val span { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
 .sec-meter-track {
+    display: block;
     position: relative;
     height: 12px;
     border-radius: 999px;
@@ -2346,3 +2347,118 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
 }
 .breakdown span { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); }
 .breakdown span + span { box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+
+/* ============================================================
+   v2.5 — bento columns + interactive meters
+   ============================================================ */
+
+/* Two independent columns. A short card no longer leaves a hole because the
+   grid stops straightening rows against the tallest card in the row. */
+.dash-cols { display: flex; gap: 1rem; align-items: flex-start; }
+.dash-col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.dash-col-main { flex: 1.15 1 0; }
+.dash-col-side { flex: 1 1 0; }
+.dash-col > .card { margin-bottom: 0; height: auto; }
+.dashboard-compact .dash-cols { margin-bottom: 0; }
+
+@media (max-width: 1200px) {
+    .dash-cols { flex-direction: column; }
+    .dash-col { width: 100%; }
+}
+
+/* Long lists scroll inside their card instead of stretching the column */
+.feed-scroll { max-height: 400px; overflow-y: auto; padding-right: 0.4rem; scrollbar-width: thin; }
+.feed-scroll::-webkit-scrollbar { width: 8px; }
+.feed-scroll::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.16); border-radius: 999px; }
+.feed-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* --- Hover tooltip (shared by the section meters and the day timeline) --- */
+.meter-tip {
+    position: absolute;
+    bottom: calc(100% + 9px);
+    right: 0;
+    z-index: 6;
+    padding: 0.45rem 0.7rem;
+    border-radius: 10px;
+    background: #241F1C;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    opacity: 0;
+    transform: translateY(4px);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.meter-tip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: 16px;
+    border: 5px solid transparent;
+    border-top-color: #241F1C;
+}
+
+/* --- Section meters as links: hover = detail, click = that section's report */
+.sec-meter {
+    display: block;
+    position: relative;
+    margin-bottom: 1.15rem;
+    border-radius: 12px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.18s ease;
+}
+.sec-meter:last-child { margin-bottom: 0; }
+.sec-meter:hover { transform: translateX(2px); }
+.sec-meter:focus-visible { outline: 2px solid var(--primary); outline-offset: 5px; }
+.sec-meter:hover .sec-meter-name { color: var(--primary); }
+.sec-meter:hover .sec-meter-track {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14), 0 0 0 3px rgba(192, 0, 0, 0.1);
+}
+.sec-meter:hover .meter-tip,
+.sec-meter:focus-visible .meter-tip { opacity: 1; transform: translateY(0); }
+
+/* light sweep across the bar on hover */
+.sec-meter-fill { overflow: hidden; }
+.sec-meter:hover .sec-meter-fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 25%, rgba(255, 255, 255, 0.55) 50%, transparent 75%);
+    transform: translateX(-120%);
+    animation: meter-sheen 0.75s ease forwards;
+}
+@keyframes meter-sheen { to { transform: translateX(120%); } }
+
+/* --- Day timeline: hover reveals the live "now" readout ----------------- */
+.dayline { position: relative; }
+.dayline:hover .meter-tip { opacity: 1; transform: translateY(0); }
+.dayline-fill::after { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.dayline-track:hover .dayline-fill::after {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 6px rgba(192, 0, 0, 0.18), 0 3px 10px rgba(0, 0, 0, 0.25);
+}
+
+/* Day timeline: hover swaps the hour labels for a live readout (no floating
+   tooltip here — the clock card is too tight and it covered the time). */
+.dayline-scale { position: relative; }
+.dayline-live {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+    pointer-events: none;
+    color: var(--primary);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.dayline-scale > span:not(.dayline-live) { transition: opacity 0.16s ease; }
+.dayline:hover .dayline-scale > span:not(.dayline-live) { opacity: 0; }
+.dayline:hover .dayline-live { opacity: 1; }

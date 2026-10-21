@@ -43,7 +43,7 @@ $segA = $logged > 0 ? max(0, 100 - $segP - $segL) : 0;
 
 /* ---------- Per-section breakdown (today) ---------- */
 $sectionRows = db()->query("
-    SELECT sec.name AS section_name,
+    SELECT sec.id AS section_id, sec.name AS section_name,
            SUM(ar.status = 'present') AS present,
            SUM(ar.status = 'late')    AS late,
            SUM(ar.status = 'absent')  AS absent,
@@ -149,180 +149,205 @@ ob_start();
     </div>
 </div>
 
-<!-- Today: rate + breakdown | active sessions -->
-<div class="dash-grid">
-    <div class="card">
-        <div class="card-header">
-            <h3>Today&rsquo;s Attendance</h3>
-            <span class="text-muted text-sm"><?= date('l, M j') ?> &bull; <?= $todaySessions ?> session<?= $todaySessions === 1 ? '' : 's' ?></span>
-        </div>
-        <div class="card-body">
-            <a href="<?= $todayReportsUrl ?>" class="text-sm" style="display:inline-block;margin-bottom:0.75rem;">Open in reports →</a>
-            <div class="rate-ring">
-                <div class="ring" style="--val: <?= $onTimeRate ?>;">
-                    <span class="ring-num"><?= $onTimeRate ?>%</span>
-                    <span class="ring-cap">On&nbsp;time</span>
-                </div>
-                <div class="flex-1">
-                    <?php if ($logged === 0): ?>
-                        <p class="text-muted text-sm">No attendance logged yet today. Numbers appear as teachers scan students in.</p>
-                    <?php else: ?>
-                        <div class="breakdown">
-                            <span class="seg-present" style="width: <?= $segP ?>%"></span>
-                            <span class="seg-late" style="width: <?= $segL ?>%"></span>
-                            <span class="seg-absent" style="width: <?= $segA ?>%"></span>
-                        </div>
-                        <div class="breakdown-legend">
-                            <span><i class="dot-present"></i><?= $present ?> Present</span>
-                            <span><i class="dot-late"></i><?= $late ?> Late</span>
-                            <span><i class="dot-absent"></i><?= $absent ?> Absent</span>
-                        </div>
-                    <?php endif; ?>
-                </div>
+<!-- Bento — two independent columns so cards never leave holes -->
+<div class="dash-cols">
+
+    <!-- ============ MAIN COLUMN ============ -->
+    <div class="dash-col dash-col-main">
+
+        <!-- Today's attendance -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Today&rsquo;s Attendance</h3>
+                <a href="<?= $todayReportsUrl ?>" class="text-sm">Open in reports &rarr;</a>
             </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h3>Sessions In Progress</h3>
-            <?php if ($activeCount > 0): ?>
-                <span class="live-pill"><span class="blip"></span>Live &bull; <?= $activeCount ?></span>
-            <?php endif; ?>
-        </div>
-        <div class="card-body">
-            <?php if (empty($activeSessions)): ?>
-                <div class="empty-state" style="padding:1.5rem 1rem;">
-                    <h3>No classes taking attendance</h3>
-                    <p class="text-sm">Active sessions show here in real time.</p>
-                </div>
-            <?php else: ?>
-                <div class="feed">
-                    <?php foreach ($activeSessions as $s): ?>
-                        <div class="feed-item">
-                            <span class="feed-dot" style="background: var(--success)"></span>
-                            <div class="feed-main">
-                                <strong><?= h($s['subject_name']) ?> &bull; <?= h($s['section_name']) ?></strong>
-                                <span><?= h($s['tf'] . ' ' . $s['tl']) ?> &bull; Room <?= h($s['room'] ?: 'N/A') ?> &bull; <?= (int)$s['live_present'] ?> in, <?= (int)$s['live_late'] ?> late</span>
-                            </div>
-                            <span class="feed-time"><?= format_time($s['start_time']) ?></span>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-<!-- Per-section + recent scans -->
-<div class="dash-grid">
-    <div class="card">
-        <div class="card-header"><h3>By Section &mdash; Today</h3></div>
-        <div class="card-body">
-            <?php if (empty($sectionRows)): ?>
-                <div class="empty-state" style="padding:1.5rem 1rem;"><h3>Nothing logged yet</h3><p class="text-sm">Per-section rates build up during the day.</p></div>
-            <?php else: ?>
-                <?php foreach ($sectionRows as $r):
-                    $t = (int)$r['total']; $ok = (int)$r['present'] + (int)$r['late'];
-                    $pct = $t > 0 ? round($ok / $t * 100) : 0; ?>
-                    <div class="sec-meter" data-tone="<?= $pct >= 90 ? 'good' : ($pct >= 70 ? 'warn' : 'low') ?>">
-                        <div class="sec-meter-head">
-                            <a class="sec-meter-name" href="/admin/sections.php?search=<?= urlencode($r['section_name']) ?>"><?= h($r['section_name']) ?></a>
-                            <span class="sec-meter-val"><b><?= $pct ?>%</b><span><?= $ok ?>/<?= $t ?> in</span></span>
-                        </div>
-                        <div class="sec-meter-track">
-                            <span class="sec-meter-fill" style="--v: <?= $pct ?>%"></span>
-                        </div>
+            <div class="card-body">
+                <div class="rate-ring">
+                    <div class="ring" style="--val: <?= $onTimeRate ?>;">
+                        <span class="ring-num"><?= $onTimeRate ?>%</span>
+                        <span class="ring-cap">On&nbsp;time</span>
                     </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h3>Absent Today</h3>
-            <a href="<?= $absentReportsUrl ?>" class="text-sm">View all <?= $absent ?> in reports</a>
-        </div>
-        <div class="card-body scroll-y">
-            <?php if (empty($absentToday)): ?>
-                <div class="empty-state" style="padding:1.5rem 1rem;"><h3>No absences recorded</h3><p class="text-sm">Absences appear here when a session closes.</p></div>
-            <?php else: ?>
-                <div class="feed">
-                    <?php foreach ($absentToday as $a): ?>
-                        <div class="feed-item">
-                            <span class="feed-dot" style="background: var(--danger)"></span>
-                            <div class="feed-main">
-                                <strong><a href="/admin/student.php?id=<?= (int)$a['student_id'] ?>"><?= h($a['first_name'] . ' ' . $a['last_name']) ?></a></strong>
-                                <span><?= h($a['subject_name']) ?> &bull; <?= h($a['section_name']) ?><?= $a['room'] ? ' &bull; Room ' . h($a['room']) : '' ?></span>
+                    <div class="flex-1">
+                        <?php if ($logged === 0): ?>
+                            <p class="text-muted text-sm">No attendance logged yet today. Numbers appear as teachers scan students in.</p>
+                        <?php else: ?>
+                            <div class="breakdown">
+                                <span class="seg-present" style="width: <?= $segP ?>%"></span>
+                                <span class="seg-late" style="width: <?= $segL ?>%"></span>
+                                <span class="seg-absent" style="width: <?= $segA ?>%"></span>
                             </div>
-                            <span class="badge badge-danger">absent</span>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h3>Recent Scans</h3>
-            <a href="/admin/reports.php" class="text-sm">View reports</a>
-        </div>
-        <div class="card-body scroll-y">
-            <?php if (empty($recentScans)): ?>
-                <div class="empty-state" style="padding:1.5rem 1rem;"><h3>No scans yet</h3></div>
-            <?php else: ?>
-                <div class="feed">
-                    <?php foreach ($recentScans as $r): ?>
-                        <div class="feed-item">
-                            <span class="feed-dot" style="background: <?= $dotColor($r['status']) ?>"></span>
-                            <div class="feed-main">
-                                <strong><a href="/admin/student.php?id=<?= (int)$r['student_id'] ?>"><?= h($r['first_name'] . ' ' . $r['last_name']) ?></a></strong>
-                                <span><?= h($r['subject_name']) ?> &bull; <?= h($r['section_name']) ?></span>
+                            <div class="breakdown-legend">
+                                <span><i class="dot-present"></i><?= $present ?> Present</span>
+                                <span><i class="dot-late"></i><?= $late ?> Late</span>
+                                <span><i class="dot-absent"></i><?= $absent ?> Absent</span>
                             </div>
-                            <span class="badge badge-<?= $statusClass($r['status']) ?>"><?= h($r['status']) ?></span>
-                            <span class="feed-time"><?= date('g:i A', strtotime($r['timestamp'])) ?></span>
-                        </div>
-                    <?php endforeach; ?>
+                            <p class="text-muted text-sm" style="margin:0.65rem 0 0;"><?= $logged ?> scan<?= $logged === 1 ? '' : 's' ?> across <?= $todaySessions ?> session<?= $todaySessions === 1 ? '' : 's' ?> today &middot; <?= date('l, M j') ?></p>
+                        <?php endif; ?>
+                    </div>
                 </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-<!-- Parent notifications + quick links -->
-<div class="dash-grid">
-    <div class="card">
-        <div class="card-header">
-            <h3>Parent Email Notifications</h3>
-            <span class="text-muted text-sm">Today</span>
-        </div>
-        <div class="card-body">
-            <?php if ($mailTotal === 0): ?>
-                <p class="text-muted text-sm">No arrival / dismissal emails queued yet today.</p>
-            <?php else: ?>
-                <div class="summary-grid" style="margin-bottom:0;">
-                    <div class="summary-card is-present"><div class="number"><?= $mail['sent'] ?></div><div class="label">Sent</div></div>
-                    <div class="summary-card is-late"><div class="number"><?= $mail['pending'] ?></div><div class="label">Pending</div></div>
-                    <div class="summary-card is-absent"><div class="number"><?= $mail['failed'] ?></div><div class="label">Failed</div></div>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header"><h3>Quick Actions</h3></div>
-        <div class="card-body">
-            <div class="quick-links">
-                <a class="quick-link" href="/admin/students.php?action=add"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Add Student</a>
-                <a class="quick-link" href="/admin/schedule.php?action=add"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>New Schedule</a>
-                <a class="quick-link" href="/admin/qr-codes.php"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM21 14h-3M14 21h3"/></svg>Print QR Cards</a>
-                <a class="quick-link" href="/admin/reports.php"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Attendance Report</a>
-                <a class="quick-link" href="/admin/teachers.php"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Manage Teachers</a>
-                <a class="quick-link" href="/admin/audit-logs.php"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Audit Logs</a>
             </div>
         </div>
+
+        <!-- By section: hover a bar for the breakdown, click to open that section's report -->
+        <div class="card">
+            <div class="card-header">
+                <h3>By Section &mdash; Today</h3>
+                <span class="text-muted text-sm"><?= count($sectionRows) ?> section<?= count($sectionRows) === 1 ? '' : 's' ?> logged</span>
+            </div>
+            <div class="card-body">
+                <?php if (empty($sectionRows)): ?>
+                    <div class="empty-state" style="padding:1.5rem 1rem;"><h3>Nothing logged yet</h3><p class="text-sm">Per-section rates build up during the day.</p></div>
+                <?php else: ?>
+                    <?php foreach ($sectionRows as $r):
+                        $t   = (int) $r['total'];
+                        $p   = (int) $r['present'];
+                        $l   = (int) $r['late'];
+                        $a   = (int) $r['absent'];
+                        $ok  = $p + $l;
+                        $pct = $t > 0 ? (int) round($ok / $t * 100) : 0;
+                        $tone = $pct >= 90 ? 'good' : ($pct >= 70 ? 'warn' : 'low');
+                        $detail = $p . ' present · ' . $l . ' late · ' . $a . ' absent';
+                        $secUrl = '/admin/reports.php?date_from=' . $todayISO . '&date_to=' . $todayISO . '&section_id=' . (int) $r['section_id'];
+                    ?>
+                        <a class="sec-meter" href="<?= h($secUrl) ?>" data-tone="<?= $tone ?>"
+                           aria-label="<?= h($r['section_name']) ?>: <?= $pct ?>% in, <?= h($detail) ?>">
+                            <span class="sec-meter-head">
+                                <span class="sec-meter-name"><?= h($r['section_name']) ?></span>
+                                <span class="sec-meter-val"><b><?= $pct ?>%</b><span><?= $ok ?>/<?= $t ?> in</span></span>
+                            </span>
+                            <span class="sec-meter-track">
+                                <span class="sec-meter-fill" style="--v: <?= $pct ?>%"></span>
+                            </span>
+                            <span class="meter-tip"><?= h($detail) ?> &middot; open report &rarr;</span>
+                        </a>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Recent scans -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Recent Scans</h3>
+                <a href="/admin/reports.php" class="text-sm">View reports &rarr;</a>
+            </div>
+            <div class="card-body">
+                <?php if (empty($recentScans)): ?>
+                    <div class="empty-state" style="padding:1.5rem 1rem;"><h3>No scans yet</h3><p class="text-sm">The newest check-ins show up here.</p></div>
+                <?php else: ?>
+                    <div class="feed feed-scroll">
+                        <?php foreach ($recentScans as $r): ?>
+                            <div class="feed-item">
+                                <span class="feed-dot" style="background: <?= $dotColor($r['status']) ?>"></span>
+                                <div class="feed-main">
+                                    <strong><a href="/admin/student.php?id=<?= (int) $r['student_id'] ?>"><?= h($r['first_name'] . ' ' . $r['last_name']) ?></a></strong>
+                                    <span><?= h($r['subject_name']) ?> &bull; <?= h($r['section_name']) ?></span>
+                                </div>
+                                <span class="badge badge-<?= $statusClass($r['status']) ?>"><?= h($r['status']) ?></span>
+                                <span class="feed-time"><?= date('g:i A', strtotime($r['timestamp'])) ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ============ SIDE COLUMN ============ -->
+    <div class="dash-col dash-col-side">
+
+        <!-- Sessions in progress -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Sessions In Progress</h3>
+                <?php if ($activeCount > 0): ?>
+                    <span class="live-pill"><span class="blip"></span>Live &bull; <?= $activeCount ?></span>
+                <?php endif; ?>
+            </div>
+            <div class="card-body">
+                <?php if (empty($activeSessions)): ?>
+                    <div class="empty-state" style="padding:1.5rem 1rem;">
+                        <h3>No classes taking attendance</h3>
+                        <p class="text-sm">Active sessions show here in real time.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="feed">
+                        <?php foreach ($activeSessions as $s): ?>
+                            <div class="feed-item">
+                                <span class="feed-dot" style="background: var(--success)"></span>
+                                <div class="feed-main">
+                                    <strong><?= h($s['subject_name']) ?> &bull; <?= h($s['section_name']) ?></strong>
+                                    <span><?= h($s['tf'] . ' ' . $s['tl']) ?> &bull; Room <?= h($s['room'] ?: 'N/A') ?> &bull; <?= (int) $s['live_present'] ?> in, <?= (int) $s['live_late'] ?> late</span>
+                                </div>
+                                <span class="feed-time"><?= format_time($s['start_time']) ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Absent today -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Absent Today</h3>
+                <a href="<?= $absentReportsUrl ?>" class="text-sm">All <?= $absent ?> &rarr;</a>
+            </div>
+            <div class="card-body">
+                <?php if (empty($absentToday)): ?>
+                    <div class="empty-state" style="padding:1.5rem 1rem;"><h3>No absences recorded</h3><p class="text-sm">Absences appear here when a session closes.</p></div>
+                <?php else: ?>
+                    <div class="feed feed-scroll">
+                        <?php foreach ($absentToday as $a): ?>
+                            <div class="feed-item">
+                                <span class="feed-dot" style="background: var(--danger)"></span>
+                                <div class="feed-main">
+                                    <strong><a href="/admin/student.php?id=<?= (int) $a['student_id'] ?>"><?= h($a['first_name'] . ' ' . $a['last_name']) ?></a></strong>
+                                    <span><?= h($a['subject_name']) ?> &bull; <?= h($a['section_name']) ?><?= $a['room'] ? ' &bull; Room ' . h($a['room']) : '' ?></span>
+                                </div>
+                                <span class="badge badge-danger">absent</span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Parent email notifications -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Parent Email</h3>
+                <span class="text-muted text-sm">Today</span>
+            </div>
+            <div class="card-body">
+                <?php if ($mailTotal === 0): ?>
+                    <p class="text-muted text-sm" style="margin:0;">No arrival / dismissal emails queued yet today.</p>
+                <?php else: ?>
+                    <div class="summary-grid" style="margin-bottom:0;">
+                        <div class="summary-card is-present"><div class="number"><?= $mail['sent'] ?></div><div class="label">Sent</div></div>
+                        <div class="summary-card is-late"><div class="number"><?= $mail['pending'] ?></div><div class="label">Pending</div></div>
+                        <div class="summary-card is-absent"><div class="number"><?= $mail['failed'] ?></div><div class="label">Failed</div></div>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="card">
+            <div class="card-header"><h3>Quick Actions</h3></div>
+            <div class="card-body">
+                <div class="quick-links">
+                    <a class="quick-link" href="/admin/students.php?action=add"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Add Student</a>
+                    <a class="quick-link" href="/admin/schedule.php?action=add"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>New Schedule</a>
+                    <a class="quick-link" href="/admin/qr-codes.php"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM21 14h-3M14 21h3"/></svg>Print QR Cards</a>
+                    <a class="quick-link" href="/admin/reports.php"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Attendance Report</a>
+                    <a class="quick-link" href="/admin/teachers.php"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Manage Teachers</a>
+                    <a class="quick-link" href="/admin/audit-logs.php"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Audit Logs</a>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 </div>
