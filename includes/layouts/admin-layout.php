@@ -174,5 +174,6 @@ $currentPage = $currentPage ?? '';
         window.addEventListener('resize', function () { place(active, false); });
     })();
     </script>
+    <script src="/assets/js/zoom-lock.js?v=20261021" defer></script>
 </body>
 </html>

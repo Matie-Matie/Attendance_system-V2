@@ -131,5 +131,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+    <script src="/assets/js/zoom-lock.js?v=20261021" defer></script>
 </body>
 </html>

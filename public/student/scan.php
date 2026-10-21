@@ -209,5 +209,6 @@ require_once __DIR__ . '/../../bootstrap.php';
 
     document.addEventListener('DOMContentLoaded', startQrScanner);
     </script>
+    <script src="/assets/js/zoom-lock.js?v=20261021" defer></script>
 </body>
 </html>
