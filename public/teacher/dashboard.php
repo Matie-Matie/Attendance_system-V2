@@ -174,9 +174,15 @@ $dayProgress = max(0, min(100, round(($nowMinutes - 7*60) / (10*60) * 100)));
             <div class="tha-clock-top"><span>System Time</span><span style="color: var(--success); font-weight:800;">● Live</span></div>
             <div class="tha-clock-time" id="clock-time"><?= date('h:i:s A') ?></div>
             <div class="tha-clock-date" id="clock-date"><?= date('l, M j') ?> • <?= date('Y') ?></div>
-            <div class="tha-day-progress">
-                <div class="tha-progress-label"><span>Day progress</span><span><?= $dayProgress ?>%</span></div>
-                <div class="tha-progress-track"><div class="tha-progress-fill" style="width: <?= $dayProgress ?>%"></div></div>
+            <div class="dayline">
+                <div class="dayline-head">
+                    <span>School day</span>
+                    <span class="dayline-pct" id="dayline-pct"><?= $dayProgress ?>%</span>
+                </div>
+                <div class="dayline-track">
+                    <span class="dayline-fill" id="dayline-fill" style="--p: <?= $dayProgress ?>%"></span>
+                </div>
+                <div class="dayline-scale"><span>7 AM</span><span>12 NN</span><span>5 PM</span></div>
             </div>
         </div>
     </div>
@@ -198,6 +204,14 @@ $dayProgress = max(0, min(100, round(($nowMinutes - 7*60) / (10*60) * 100)));
             const elD = document.getElementById('clock-date');
             if (elT) elT.textContent = timeStr;
             if (elD) elD.textContent = dateStr;
+
+            // School day timeline (7 AM – 5 PM), kept in sync with the clock
+            const mins = h * 60 + m;
+            const p = Math.max(0, Math.min(100, Math.round((mins - 7 * 60) / (10 * 60) * 100)));
+            const elF = document.getElementById('dayline-fill');
+            const elP = document.getElementById('dayline-pct');
+            if (elF) elF.style.setProperty('--p', p + '%');
+            if (elP) elP.textContent = p + '%';
         }
         setInterval(updateClock, 1000);
         updateClock();

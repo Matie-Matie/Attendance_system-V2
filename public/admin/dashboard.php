@@ -225,12 +225,14 @@ ob_start();
                 <?php foreach ($sectionRows as $r):
                     $t = (int)$r['total']; $ok = (int)$r['present'] + (int)$r['late'];
                     $pct = $t > 0 ? round($ok / $t * 100) : 0; ?>
-                    <div class="prog-row">
-                        <div class="prog-head">
-                            <span><a href="/admin/sections.php?search=<?= urlencode($r['section_name']) ?>"><?= h($r['section_name']) ?></a></span>
-                            <span class="pct"><?= $pct ?>% &bull; <?= $ok ?>/<?= $t ?></span>
+                    <div class="sec-meter" data-tone="<?= $pct >= 90 ? 'good' : ($pct >= 70 ? 'warn' : 'low') ?>">
+                        <div class="sec-meter-head">
+                            <a class="sec-meter-name" href="/admin/sections.php?search=<?= urlencode($r['section_name']) ?>"><?= h($r['section_name']) ?></a>
+                            <span class="sec-meter-val"><b><?= $pct ?>%</b><span><?= $ok ?>/<?= $t ?> in</span></span>
                         </div>
-                        <div class="prog-track"><div class="prog-fill" style="width: <?= $pct ?>%"></div></div>
+                        <div class="sec-meter-track">
+                            <span class="sec-meter-fill" style="--v: <?= $pct ?>%"></span>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
