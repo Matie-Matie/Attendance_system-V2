@@ -9,9 +9,11 @@ $slot = '';
 require_once __DIR__ . '/../../bootstrap.php';
 require_role('admin');
 
-$validDate = fn($d) => (is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) ? $d : today();
-$dateFrom = $validDate($_GET['date_from'] ?? null);
-$dateTo   = $validDate($_GET['date_to'] ?? null);
+// Default range = the whole school year, so past attendance is never "missing".
+$validDate = fn($d, $fallback) => (is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) ? $d : $fallback;
+$dateFrom = $validDate($_GET['date_from'] ?? null, report_default_from());
+$dateTo   = $validDate($_GET['date_to'] ?? null, today());
+if ($dateFrom > $dateTo) { [$dateFrom, $dateTo] = [$dateTo, $dateFrom]; }
 $statusFilterAllowed = ['present', 'late', 'absent'];
 $teacherFilter = (int)($_GET['teacher_id'] ?? 0);
 $sectionFilter = (int)($_GET['section_id'] ?? 0);
@@ -51,7 +53,7 @@ $stmt = db()->prepare("
     JOIN teachers t ON se.teacher_id = t.id
     WHERE $whereClause
     ORDER BY ar.timestamp DESC
-    LIMIT 1000
+    " . ($export === 'csv' ? '' : 'LIMIT 1000') . "
 ");
 $stmt->execute($params);
 $records = $stmt->fetchAll();
@@ -80,11 +82,22 @@ $classLabel = function (array $r): string {
     return $label;
 };
 
-// Summary stats
-$totalRecords = count($records);
-$presentCount = count(array_filter($records, fn($r) => $r['status'] === 'present'));
-$lateCount = count(array_filter($records, fn($r) => $r['status'] === 'late'));
-$absentCount = count(array_filter($records, fn($r) => $r['status'] === 'absent'));
+
+// True totals for the whole range (the table below is capped, these are not).
+$countStmt = db()->prepare("
+    SELECT ar.status, COUNT(*) AS n
+    FROM attendance_records ar
+    JOIN attendance_sessions as2 ON ar.attendance_session_id = as2.id
+    JOIN schedule_entries se ON as2.schedule_entry_id = se.id
+    WHERE $whereClause
+    GROUP BY ar.status
+");
+$countStmt->execute($params);
+$statusCounts = $countStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+$presentCount = (int) ($statusCounts['present'] ?? 0);
+$lateCount    = (int) ($statusCounts['late'] ?? 0);
+$absentCount  = (int) ($statusCounts['absent'] ?? 0);
+$totalRecords = $presentCount + $lateCount + $absentCount;
 
 // CSV Export
 if ($export === 'csv') {
@@ -138,6 +151,11 @@ ob_start();
         </div>
     </div>
     <div class="card-body">
+        <div class="range-pills" role="group" aria-label="Quick date range">
+            <?php foreach (report_ranges() as $label => [$rf, $rt]): ?>
+                <a href="<?= h('/admin/reports.php?' . http_build_query(array_filter(['date_from' => $rf, 'date_to' => $rt, 'teacher_id' => $teacherFilter ?: null, 'section_id' => $sectionFilter ?: null, 'subject_id' => $subjectFilter ?: null, 'status' => $statusFilter ?: null]))) ?>" class="fp-pill <?= $dateFrom === $rf && $dateTo === $rt ? 'active' : '' ?>"><?= h($label) ?></a>
+            <?php endforeach; ?>
+        </div>
         <form method="GET" action="" class="filter-bar">
             <div class="form-group">
                 <label>From</label>
@@ -194,7 +212,7 @@ ob_start();
         if ($sectionFilter) $activeFilters[] = 'Section';
         if ($subjectFilter) $activeFilters[] = 'Subject';
         if ($statusFilter) $activeFilters[] = 'Status: ' . $statusFilter;
-        if ($dateFrom !== today() || $dateTo !== today()) $activeFilters[] = $dateFrom . ' → ' . $dateTo;
+        if ($dateFrom !== report_default_from() || $dateTo !== today()) $activeFilters[] = $dateFrom . ' → ' . $dateTo;
         ?>
         <?php if (!empty($activeFilters)): ?>
             <div class="active-filters no-print">
@@ -218,7 +236,7 @@ ob_start();
     <div class="card-header no-print">
         <h3>Attendance Records</h3>
         <span class="text-muted" style="font-size:0.85rem;">
-            Showing <?= count($records) ?> of <?= $totalRecords ?> records
+            Showing <?= count($records) ?> of <?= $totalRecords ?> records<?= count($records) < $totalRecords ? ' — Export CSV for the full list' : '' ?>
         </span>
     </div>
     <div class="card-body p-0">

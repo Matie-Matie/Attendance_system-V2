@@ -13,8 +13,11 @@ require_role('teacher');
 $teacher = current_teacher();
 $teacherId = $teacher['id'] ?? 0;
 
-$dateFrom = $_GET['date_from'] ?? date('Y-m-d', strtotime('-7 days'));
-$dateTo = $_GET['date_to'] ?? today();
+// Default range = the whole school year, so past attendance is never "missing".
+$validDate = fn($d, $fallback) => (is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) ? $d : $fallback;
+$dateFrom = $validDate($_GET['date_from'] ?? null, report_default_from());
+$dateTo   = $validDate($_GET['date_to'] ?? null, today());
+if ($dateFrom > $dateTo) { [$dateFrom, $dateTo] = [$dateTo, $dateFrom]; }
 $sectionFilter = (int)($_GET['section_id'] ?? 0);
 $export = $_GET['export'] ?? '';
 
@@ -57,7 +60,7 @@ $stmt = db()->prepare("
     JOIN sections sec ON se.section_id = sec.id
     WHERE $whereClause
     ORDER BY ar.timestamp DESC
-    LIMIT 500
+    " . ($export === 'csv' ? '' : 'LIMIT 1000') . "
 ");
 $stmt->execute($params);
 $records = $stmt->fetchAll();
@@ -85,9 +88,22 @@ $classLabel = function (array $r): string {
     return $label;
 };
 
-$presentCount = count(array_filter($records, fn($r) => $r['status'] === 'present'));
-$lateCount = count(array_filter($records, fn($r) => $r['status'] === 'late'));
-$absentCount = count(array_filter($records, fn($r) => $r['status'] === 'absent'));
+
+// True totals for the whole range (the table below is capped, these are not).
+$countStmt = db()->prepare("
+    SELECT ar.status, COUNT(*) AS n
+    FROM attendance_records ar
+    JOIN attendance_sessions as2 ON ar.attendance_session_id = as2.id
+    JOIN schedule_entries se ON as2.schedule_entry_id = se.id
+    WHERE $whereClause
+    GROUP BY ar.status
+");
+$countStmt->execute($params);
+$statusCounts = $countStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+$presentCount = (int) ($statusCounts['present'] ?? 0);
+$lateCount    = (int) ($statusCounts['late'] ?? 0);
+$absentCount  = (int) ($statusCounts['absent'] ?? 0);
+$totalRecords = $presentCount + $lateCount + $absentCount;
 
 // Build a URL that keeps the current filters, optionally overriding one key.
 $reportUrl = function (array $overrides = []) use ($dateFrom, $dateTo, $sectionFilter, $statusFilter): string {
@@ -121,8 +137,6 @@ if ($export === 'csv') {
 }
 
 ob_start();
-
-$totalRecords = count($records);
 ?>
 
 <div class="page-intro no-print" style="margin-bottom:1.5rem;">
@@ -142,6 +156,11 @@ $totalRecords = count($records);
         </div>
     </div>
     <div class="card-body">
+        <div class="range-pills" role="group" aria-label="Quick date range">
+            <?php foreach (report_ranges() as $label => [$rf, $rt]): ?>
+                <a href="<?= h($reportUrl(['date_from' => $rf, 'date_to' => $rt])) ?>" class="fp-pill <?= $dateFrom === $rf && $dateTo === $rt ? 'active' : '' ?>"><?= h($label) ?></a>
+            <?php endforeach; ?>
+        </div>
         <form method="GET" class="filter-bar">
             <div class="form-group">
                 <label>From</label>
@@ -185,7 +204,7 @@ $totalRecords = count($records);
     <a class="summary-card is-present" style="text-decoration:none;" href="<?= h($reportUrl(['status' => 'present'])) ?>"><div class="number"><?= $presentCount ?></div><div class="label">Present</div></a>
     <a class="summary-card is-late" style="text-decoration:none;" href="<?= h($reportUrl(['status' => 'late'])) ?>"><div class="number"><?= $lateCount ?></div><div class="label">Late</div></a>
     <a class="summary-card is-absent" style="text-decoration:none;" href="<?= h($reportUrl(['status' => 'absent'])) ?>"><div class="number"><?= $absentCount ?></div><div class="label">Absent</div></a>
-    <div class="summary-card"><div class="number"><?= count($records) ?></div><div class="label">Total</div></div>
+    <div class="summary-card"><div class="number"><?= $totalRecords ?></div><div class="label">Total</div></div>
 </div>
 
 <div class="card report-table-card">

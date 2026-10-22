@@ -2667,3 +2667,6 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
     .cal-col.is-today { background-color: transparent; }
     .cal-dayhead.is-today, .cal-dayhead.is-today span { color: inherit; }
 }
+
+/* Report quick ranges (2026-10-22) */
+.range-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }

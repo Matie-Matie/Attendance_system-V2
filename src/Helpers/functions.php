@@ -218,3 +218,31 @@ function current_school_year_filter(string $alias = 'se'): string
     }
     return " AND {$alias}.semester_id IN (SELECT id FROM semesters WHERE school_year_id = " . (int) $syId . ")";
 }
+
+/**
+ * Default "From" date for the report pages: the whole current school year, so
+ * the full attendance history shows instead of just today. Falls back to the
+ * first recorded scan, then to 30 days ago.
+ */
+function report_default_from(): string
+{
+    $start = db()->query("SELECT start_date FROM school_years WHERE is_current = 1 AND start_date IS NOT NULL LIMIT 1")->fetchColumn();
+    if ($start && $start <= today()) {
+        return $start;
+    }
+    $first = db()->query("SELECT MIN(DATE(timestamp)) FROM attendance_records")->fetchColumn();
+    return $first ?: date('Y-m-d', strtotime('-30 days'));
+}
+
+/**
+ * Quick date ranges for the report filter: label => [from, to].
+ */
+function report_ranges(): array
+{
+    return [
+        'Today'            => [today(), today()],
+        'This week'        => [date('Y-m-d', strtotime('monday this week')), today()],
+        'This month'       => [date('Y-m-01'), today()],
+        'Whole school year' => [report_default_from(), today()],
+    ];
+}
