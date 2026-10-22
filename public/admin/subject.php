@@ -84,16 +84,11 @@ ob_start();
         <h1><?= h($subject['name']) ?> <?= $subject['code'] ? '<em>' . h($subject['code']) . '</em>' : '' ?></h1>
         <p><?= h($subject['description'] ?: 'No description.') ?></p>
     </div>
-    <div class="page-intro-stats">
-        <div class="mini-stat"><div><strong><?= count($teachers) ?></strong><span>Teachers</span></div></div>
-        <div class="mini-stat"><div><strong><?= count($sectionIds) ?></strong><span>Sections</span></div></div>
-        <div class="mini-stat"><div><strong><?= count($students) ?></strong><span>Students</span></div></div>
-    </div>
 </div>
 
 <?php if (empty($teachers)): ?>
     <div class="card"><div class="card-body">
-        <div class="empty-state"><h3>Not assigned yet</h3><p class="text-sm">No teacher or class handles this subject. Add it to the master schedule.</p>
+        <div class="empty-state"><h3>Not assigned yet</h3><p class="text-sm">No teacher or class handles this subject. Add it to the Teacher Schedule.</p>
         <a href="/admin/schedule.php?action=add" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">Add to Schedule</a></div>
     </div></div>
 <?php else: ?>

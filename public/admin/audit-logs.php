@@ -46,11 +46,6 @@ $weekLogs = (int) db()->query("SELECT COUNT(*) FROM audit_logs WHERE created_at 
         <h1>Audit <em>Trail</em></h1>
         <p>Every create, update, and delete — who did what, when, and from where. Filter by page, not required here — it's all here.</p>
     </div>
-    <div class="page-intro-stats">
-        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><div><strong><?= $total ?></strong><span>Total</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><strong><?= $todayLogs ?></strong><span>Today</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--info-light); color: var(--info);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><strong><?= $weekLogs ?></strong><span>7 days</span></div></div>
-    </div>
 </div>
 
 <div class="card overflow-hidden">

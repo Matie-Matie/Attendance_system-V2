@@ -180,14 +180,8 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
 ?>
 <div class="page-intro">
     <div class="page-intro-main">
-        <h1>Teachers <em><?= $totalAll ?></em></h1>
-        <p>Faculty directory — credentials, assignments, and load. Each teacher gets a login to run biometric attendance.</p>
-    </div>
-    <div class="page-intro-stats">
-        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><strong><?= $totalAll ?></strong><span>Faculty</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/></svg></div><div><strong><?= $withSchedule ?></strong><span>With load</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--info-light); color: var(--info);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div><div><strong><?= $totalEntries ?></strong><span title="Total class meetings assigned across all teachers">Classes assigned</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--warning-light); color: #B07D16;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></div><div><strong><?= $activeUsers ?></strong><span>Active logins</span></div></div>
+        <h1>Teachers</h1>
+        <p>Faculty directory — credentials, assignments, and load. Each teacher gets a login to run QR attendance.</p>
     </div>
 </div>
 
@@ -217,7 +211,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
         <?php else: ?>
             <div class="table-responsive">
                 <table class="table">
-                    <thead><tr><th>Teacher</th><th>Username</th><th>Email</th><th>Status</th><th title="Classes assigned this semester">Load</th><th style="text-align:right;">Actions</th></tr></thead>
+                    <thead><tr><th>Teacher</th><th>Username</th><th>Email</th><th>Status</th><th title="Classes assigned this school year">Load</th><th style="text-align:right;">Actions</th></tr></thead>
                     <tbody>
                         <?php foreach ($teachers as $t): ?>
                             <?php $scheduleCount = db()->prepare("SELECT COUNT(*) FROM schedule_entries WHERE teacher_id = ? AND status = 1"); $scheduleCount->execute([$t['id']]); $sc = $scheduleCount->fetchColumn();
@@ -236,7 +230,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                 <td><code><?= h($t['username']) ?></code></td>
                                 <td style="font-size:0.85rem; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?= h($t['email']) ?>"><?= h($t['email']) ?: '<span class="text-muted">—</span>' ?></td>
                                 <td><span class="badge <?= $t['user_status'] ? 'badge-success' : 'badge-danger' ?>"><?= $t['user_status'] ? 'Active' : 'Inactive' ?></span></td>
-                                <td><span class="badge <?= $sc > 0 ? 'badge-info' : 'badge-warning' ?>" title="Classes assigned this semester"><?= $sc ?> <?= $sc===1?'class':'classes' ?></span></td>
+                                <td><span class="badge <?= $sc > 0 ? 'badge-info' : 'badge-warning' ?>" title="Classes assigned this school year"><?= $sc ?> <?= $sc===1?'class':'classes' ?></span></td>
                                 <td style="text-align:right;"><a href="/admin/teachers.php?action=edit&id=<?= $t['id'] ?>" class="btn btn-sm btn-outline">Edit</a></td>
                             </tr>
                         <?php endforeach; ?>

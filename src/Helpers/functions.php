@@ -177,3 +177,44 @@ function current_time(): string
 {
     return date('H:i:s');
 }
+
+/**
+ * Semesters are no longer split up in the UI (2026-10-22, sir Vic): the school
+ * year is the only term the admin manages. The semesters table stays because
+ * schedule_entries.semester_id is NOT NULL, so each school year quietly owns a
+ * "Whole Year" term and new schedule entries are filed under it.
+ *
+ * Returns the semester id to file new schedule entries under: the current
+ * school year's earliest term, created on demand. Null when no school year
+ * exists at all.
+ */
+function current_term_id(): ?int
+{
+    $sy = db()->query("SELECT id, start_date, end_date FROM school_years ORDER BY is_current DESC, created_at DESC LIMIT 1")->fetch();
+    if (!$sy) {
+        return null;
+    }
+    $stmt = db()->prepare("SELECT id FROM semesters WHERE school_year_id = ? ORDER BY is_current DESC, start_date ASC, id ASC LIMIT 1");
+    $stmt->execute([$sy['id']]);
+    $id = $stmt->fetchColumn();
+    if ($id) {
+        return (int) $id;
+    }
+    $ins = db()->prepare("INSERT INTO semesters (school_year_id, name, start_date, end_date, is_current) VALUES (?, 'Whole Year', ?, ?, 0)");
+    $ins->execute([$sy['id'], $sy['start_date'], $sy['end_date']]);
+    return (int) db()->lastInsertId();
+}
+
+/**
+ * SQL fragment restricting schedule_entries (aliased $alias) to the current
+ * school year — every term inside it counts. Empty string when no school year
+ * is marked current, so callers fall back to "all entries".
+ */
+function current_school_year_filter(string $alias = 'se'): string
+{
+    $syId = db()->query("SELECT id FROM school_years WHERE is_current = 1 LIMIT 1")->fetchColumn();
+    if (!$syId) {
+        return '';
+    }
+    return " AND {$alias}.semester_id IN (SELECT id FROM semesters WHERE school_year_id = " . (int) $syId . ")";
+}

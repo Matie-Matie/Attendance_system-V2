@@ -167,14 +167,8 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
 
 <div class="page-intro">
     <div class="page-intro-main">
-        <h1>Subjects <em><?= $totalAll ?></em></h1>
+        <h1>Subjects</h1>
         <p>Curriculum catalogue — codes, descriptions, and scheduling coverage. Clean names here = clean reports everywhere.</p>
-    </div>
-    <div class="page-intro-stats">
-        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><div><strong><?= $totalAll ?></strong><span>Total</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--info-light); color: var(--info);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg></div><div><strong><?= $scheduled ?></strong><span>Scheduled</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div><div><strong><?= $withCode ?></strong><span>With code</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--warning-light); color: #B07D16;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div><strong><?= $withDesc ?></strong><span>Described</span></div></div>
     </div>
 </div>
 

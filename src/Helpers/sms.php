@@ -40,17 +40,12 @@ function notify_type_for_scan(int $sectionId, string $entryStartTime): ?string
 {
     $today = date('l'); // Monday .. Sunday
 
-    // Restrict to the current semester when one is marked; otherwise consider all.
-    $curSem = db()->query("SELECT id FROM semesters WHERE is_current = 1 LIMIT 1")->fetchColumn();
-
+    // Restrict to the current school year when one is marked; otherwise consider all.
     $sql = "SELECT MIN(start_time) AS first_start, MAX(start_time) AS last_start
             FROM schedule_entries
-            WHERE section_id = ? AND day_of_week = ? AND status = 1";
+            WHERE section_id = ? AND day_of_week = ? AND status = 1"
+         . current_school_year_filter('schedule_entries');
     $params = [$sectionId, $today];
-    if ($curSem) {
-        $sql .= " AND semester_id = ?";
-        $params[] = $curSem;
-    }
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $row = $stmt->fetch();
@@ -341,8 +336,7 @@ function notify_sweep_absentees(?string $forDate = null): int
     $today = date('l', strtotime($date));
     $now   = date('H:i:s');
 
-    $curSem = db()->query("SELECT id FROM semesters WHERE is_current = 1 LIMIT 1")->fetchColumn();
-    $semFilter = $curSem ? "AND se.semester_id = " . (int) $curSem : "";
+    $semFilter = current_school_year_filter('se');
 
     // Resolve each section's FIRST schedule entry today (one row per section, so
     // this stays ONLY_FULL_GROUP_BY-safe), attach its attendance session if any,

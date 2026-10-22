@@ -9,6 +9,10 @@ $slot = '';
 require_once __DIR__ . '/../../bootstrap.php';
 require_role('admin');
 
+// Semesters are merged into the school year (2026-10-22, sir Vic) — the page is
+// retired; old bookmarks land on School Years.
+redirect('/admin/school-years.php');
+
 $schoolYearId = (int)($_GET['school_year_id'] ?? 0);
 $action = $_GET['action'] ?? 'list';
 $id = (int)($_GET['id'] ?? 0);

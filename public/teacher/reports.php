@@ -125,20 +125,14 @@ ob_start();
 $totalRecords = count($records);
 ?>
 
-<div class="page-intro" style="margin-bottom:1.5rem;">
+<div class="page-intro no-print" style="margin-bottom:1.5rem;">
     <div class="page-intro-main">
-        <h1>My Reports <em><?= $totalRecords ?></em></h1>
+        <h1>My Reports</h1>
         <p>Your classes only — filter by date or section, export CSV. Late counts as present but flagged.</p>
-    </div>
-    <div class="page-intro-stats">
-        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><strong><?= $totalRecords ?></strong><span>Total</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><strong><?= $presentCount ?></strong><span>Present</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--warning-light); color: #B07D16;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><strong><?= $lateCount ?></strong><span>Late</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--danger-light); color: var(--danger);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><strong><?= $absentCount ?></strong><span>Absent</span></div></div>
     </div>
 </div>
 
-<div class="card mb-3" style="border-radius: 22px;">
+<div class="card mb-3 no-print" style="border-radius: 22px;">
     <div class="card-header">
         <h3>Filter My Reports</h3>
         <div class="flex gap-1">
@@ -187,19 +181,14 @@ $totalRecords = count($records);
     </div>
 </div>
 
-<div class="print-only print-report-head">
-    <h2><?= config('school_name') ?> — My Attendance Report</h2>
-    <p><?= h($dateFrom) ?> → <?= h($dateTo) ?> · <?= count($records) ?> records · <?= $presentCount ?> present · <?= $lateCount ?> late · <?= $absentCount ?> absent<?= $statusFilter ? ' · filtered: ' . h($statusFilter) . ' only' : '' ?></p>
-</div>
-
-<div class="summary-grid">
+<div class="summary-grid no-print">
     <a class="summary-card is-present" style="text-decoration:none;" href="<?= h($reportUrl(['status' => 'present'])) ?>"><div class="number"><?= $presentCount ?></div><div class="label">Present</div></a>
     <a class="summary-card is-late" style="text-decoration:none;" href="<?= h($reportUrl(['status' => 'late'])) ?>"><div class="number"><?= $lateCount ?></div><div class="label">Late</div></a>
     <a class="summary-card is-absent" style="text-decoration:none;" href="<?= h($reportUrl(['status' => 'absent'])) ?>"><div class="number"><?= $absentCount ?></div><div class="label">Absent</div></a>
     <div class="summary-card"><div class="number"><?= count($records) ?></div><div class="label">Total</div></div>
 </div>
 
-<div class="card">
+<div class="card report-table-card">
     <div class="card-body" style="padding:0;">
         <?php if (empty($records)): ?>
             <div class="empty-state"><h3>No attendance records</h3></div>

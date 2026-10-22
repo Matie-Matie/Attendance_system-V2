@@ -28,7 +28,7 @@ $currentPage = $currentPage ?? '';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/style.css?v=20261023">
+    <link rel="stylesheet" href="/assets/css/style.css?v=20261024">
 </head>
 <body>
     <div class="layout">
@@ -49,12 +49,11 @@ $currentPage = $currentPage ?? '';
                     </span>
                     Dashboard
                 </a>
-                <div class="nav-group">People</div>
-                <a href="/admin/teachers.php" class="nav-item <?= $currentPage === 'teachers' ? 'active' : '' ?>">
+                <a href="/admin/schedule.php" class="nav-item <?= $currentPage === 'schedule' ? 'active' : '' ?>">
                     <span class="nav-icon">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
                     </span>
-                    Teachers
+                    Teacher Schedule
                 </a>
                 <a href="/admin/students.php" class="nav-item <?= $currentPage === 'students' ? 'active' : '' ?>">
                     <span class="nav-icon">
@@ -62,7 +61,7 @@ $currentPage = $currentPage ?? '';
                     </span>
                     Students
                 </a>
-                <div class="nav-group">Academics</div>
+                <div class="nav-group">School Records</div>
                 <a href="/admin/subjects.php" class="nav-item <?= $currentPage === 'subjects' ? 'active' : '' ?>">
                     <span class="nav-icon">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -81,11 +80,11 @@ $currentPage = $currentPage ?? '';
                     </span>
                     School Years
                 </a>
-                <a href="/admin/schedule.php" class="nav-item <?= $currentPage === 'schedule' ? 'active' : '' ?>">
+                <a href="/admin/teachers.php" class="nav-item <?= $currentPage === 'teachers' ? 'active' : '' ?>">
                     <span class="nav-icon">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     </span>
-                    Teachers Master Schedule
+                    Teachers
                 </a>
                 <div class="nav-group">System</div>
                 <a href="/admin/qr-codes.php" class="nav-item <?= $currentPage === 'qr-codes' ? 'active' : '' ?>">

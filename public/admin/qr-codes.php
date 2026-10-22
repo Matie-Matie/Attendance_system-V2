@@ -100,12 +100,8 @@ ob_start();
     <!-- All / Filtered QR Grid -->
     <div class="page-intro no-print">
         <div class="page-intro-main">
-            <h1>QR Cards <em><?= count($students) ?></em></h1>
+            <h1>QR Cards</h1>
             <p>Permanent QR per student — encodes Student ID. Print, cut, distribute. Scanned at kiosk or teacher lens.</p>
-        </div>
-        <div class="page-intro-stats">
-            <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div><div><strong><?= count($students) ?></strong><span>Cards</span></div></div>
-            <div class="mini-stat"><div class="ms-icon" style="background: var(--info-light); color: var(--info);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c6 3 10 0 12-2v-5"/></svg></div><div><strong><?= count($sections) ?></strong><span>Sections</span></div></div>
         </div>
     </div>
 

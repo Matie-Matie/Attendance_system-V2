@@ -1,8 +1,8 @@
 <?php
 /**
- * Admin - Master Schedule Management
+ * Admin - Teacher Schedule (weekly calendar)
  */
-$pageTitle = 'Teachers Master Schedule';
+$pageTitle = 'Teacher Schedule';
 $currentPage = 'schedule';
 $slot = '';
 
@@ -17,15 +17,6 @@ $dayFilter = $_GET['day'] ?? '';
 $teachers = db()->query("SELECT id, first_name, last_name, employee_id FROM teachers WHERE status = 1 ORDER BY first_name")->fetchAll();
 $subjects = db()->query("SELECT id, name, code FROM subjects WHERE status = 1 ORDER BY name")->fetchAll();
 $sections = db()->query("SELECT id, name, grade_level FROM sections WHERE status = 1 ORDER BY name")->fetchAll();
-$semesters = db()->query("SELECT s.id, s.name, sy.name as sy_name FROM semesters s JOIN school_years sy ON s.school_year_id = sy.id WHERE s.is_current = 1 ORDER BY s.created_at DESC")->fetchAll();
-// If no current semester, get latest
-if (empty($semesters)) {
-    $semesters = db()->query("SELECT s.id, s.name, sy.name as sy_name FROM semesters s JOIN school_years sy ON s.school_year_id = sy.id ORDER BY s.created_at DESC LIMIT 1")->fetchAll();
-} else {
-    // Also include non-current for dropdown
-    $otherSemesters = db()->query("SELECT s.id, s.name, sy.name as sy_name FROM semesters s JOIN school_years sy ON s.school_year_id = sy.id WHERE s.is_current = 0 ORDER BY s.created_at DESC")->fetchAll();
-    $semesters = array_merge($semesters, $otherSemesters);
-}
 $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // Handle form submission
@@ -33,7 +24,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $teacherId = (int)($_POST['teacher_id'] ?? 0);
     $subjectId = (int)($_POST['subject_id'] ?? 0);
     $sectionId = (int)($_POST['section_id'] ?? 0);
-    $semesterId = (int)($_POST['semester_id'] ?? 0);
     $dayOfWeek = $_POST['day_of_week'] ?? '';
     $startTime = $_POST['start_time'] ?? '';
     $endTime = $_POST['end_time'] ?? '';
@@ -59,7 +49,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$teacherId) $errors[] = 'Teacher is required.';
     if (!$subjectId) $errors[] = 'Subject is required.';
     if (!$sectionId) $errors[] = 'Section is required.';
-    if (!$semesterId) $errors[] = 'Semester is required.';
     if (!$dayOfWeek) $errors[] = 'Day is required.';
     if (!$startTime) $errors[] = 'Start time is required.';
     if (!$endTime) $errors[] = 'End time is required.';
@@ -143,17 +132,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         try {
             if ($submitAction === 'add') {
+                // Semesters are merged into the school year — file the entry
+                // under the current school year's single term.
+                $semesterId = current_term_id();
+                if (!$semesterId) {
+                    $_SESSION['_flash']['error'] = 'Add a school year first (School Records → School Years).';
+                    preserve_input($_POST);
+                    redirect('/admin/schedule.php?action=add');
+                }
                 $stmt = db()->prepare("INSERT INTO schedule_entries (teacher_id, subject_id, section_id, semester_id, day_of_week, start_time, end_time, room) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$teacherId, $subjectId, $sectionId, $semesterId, $dayOfWeek, $startTime, $endTime, $room ?: null]);
                 log_audit('create', 'schedule_entry', (int) db()->lastInsertId(), ['day' => $dayOfWeek, 'start' => $startTime]);
-                $_SESSION['_flash']['success'] = 'Schedule entry created.';
-                redirect('/admin/schedule.php');
+                $_SESSION['_flash']['success'] = 'Class added to the schedule.';
+                redirect('/admin/schedule.php?teacher_id=' . $teacherId);
             } elseif ($submitAction === 'edit' && $id > 0) {
-                $stmt = db()->prepare("UPDATE schedule_entries SET teacher_id = ?, subject_id = ?, section_id = ?, semester_id = ?, day_of_week = ?, start_time = ?, end_time = ?, room = ? WHERE id = ?");
-                $stmt->execute([$teacherId, $subjectId, $sectionId, $semesterId, $dayOfWeek, $startTime, $endTime, $room ?: null, $id]);
+                $stmt = db()->prepare("UPDATE schedule_entries SET teacher_id = ?, subject_id = ?, section_id = ?, day_of_week = ?, start_time = ?, end_time = ?, room = ? WHERE id = ?");
+                $stmt->execute([$teacherId, $subjectId, $sectionId, $dayOfWeek, $startTime, $endTime, $room ?: null, $id]);
                 log_audit('update', 'schedule_entry', $id, ['day' => $dayOfWeek, 'start' => $startTime]);
-                $_SESSION['_flash']['success'] = 'Schedule entry updated.';
-                redirect('/admin/schedule.php');
+                $_SESSION['_flash']['success'] = 'Class updated.';
+                redirect('/admin/schedule.php?teacher_id=' . $teacherId);
             }
         } catch (\Throwable $e) {
             error_log('SCPLS schedule save: ' . $e->getMessage());
@@ -172,7 +169,7 @@ ob_start();
 
 if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     $entry = [
-        'teacher_id' => 0, 'subject_id' => 0, 'section_id' => 0, 'semester_id' => 0,
+        'teacher_id' => (int)($_GET['teacher_id'] ?? 0), 'subject_id' => 0, 'section_id' => 0,
         'day_of_week' => 'Monday', 'start_time' => '08:00', 'end_time' => '09:00', 'room' => ''
     ];
     if ($action === 'edit') {
@@ -187,7 +184,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     $isEdit = $action === 'edit';
 ?>
     <div class="card form-card">
-        <div class="card-header"><h3><?= $isEdit ? 'Edit Schedule Entry' : 'New Schedule Entry' ?></h3><a href="/admin/schedule.php" class="btn btn-outline btn-sm">Back to Schedule</a></div>
+        <div class="card-header"><h3><?= $isEdit ? 'Edit Class' : 'Add Class' ?></h3><a href="/admin/schedule.php" class="btn btn-outline btn-sm">Back to Schedule</a></div>
         <div class="card-body">
             <form method="POST">
                 <input type="hidden" name="submit_action" value="<?= $isEdit ? 'edit' : 'add' ?>">
@@ -228,17 +225,6 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label for="semester_id">Semester</label>
-                        <select id="semester_id" name="semester_id" class="form-control" required>
-                            <option value="">-- Select Semester --</option>
-                            <?php foreach ($semesters as $sem): ?>
-                                <option value="<?= $sem['id'] ?>" <?= (int)$entry['semester_id'] === (int)$sem['id'] ? 'selected' : '' ?>>
-                                    <?= h($sem['name']) ?> (<?= h($sem['sy_name']) ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -269,14 +255,23 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                     <a href="/admin/schedule.php" class="btn btn-outline">Cancel</a>
                 </div>
             </form>
+            <?php if ($isEdit): ?>
+                <form method="POST" class="schedule-delete" onsubmit="return confirm('Delete this class from the schedule?')">
+                    <input type="hidden" name="submit_action" value="delete">
+                    <input type="hidden" name="id" value="<?= (int)$id ?>">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="btn btn-sm btn-danger">Delete this class</button>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
 <?php
 } else {
-    // List mode — grouped by day, or by teacher ("Teacher Master Schedule")
-    $where = ''; $params = [];
-    if ($dayFilter && in_array($dayFilter, $days)) { $where = "WHERE se.day_of_week = ?"; $params[] = $dayFilter; }
-    $viewTeacher = ($_GET['view'] ?? '') === 'teacher';
+    // Calendar mode — a weekly class program, like the printed schedule the
+    // school hands out. Pick a teacher to see only their week.
+    $teacherFilter = (int)($_GET['teacher_id'] ?? 0);
+    $where = 'WHERE se.status = 1'; $params = [];
+    if ($teacherFilter) { $where .= ' AND se.teacher_id = ?'; $params[] = $teacherFilter; }
 
     $stmt = db()->prepare("
         SELECT se.*, t.first_name as teacher_first, t.last_name as teacher_last,
@@ -287,119 +282,163 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
         JOIN subjects s ON se.subject_id = s.id
         JOIN sections sec ON se.section_id = sec.id
         $where
-        ORDER BY FIELD(se.day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), se.start_time ASC
+        ORDER BY FIELD(se.day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'), se.start_time ASC, se.end_time ASC
     ");
     $stmt->execute($params); $entries = $stmt->fetchAll();
 
-    // Group by day (default) or by teacher
-    $grouped = [];
-    foreach ($entries as $e) {
-        $key = $viewTeacher ? ($e['teacher_first'] . ' ' . $e['teacher_last']) : $e['day_of_week'];
-        $grouped[$key][] = $e;
-    }
-    if ($viewTeacher) ksort($grouped);
+    $selectedTeacher = null;
+    foreach ($teachers as $t) { if ((int)$t['id'] === $teacherFilter) { $selectedTeacher = $t; break; } }
 
-    $totalAll = (int) db()->query("SELECT COUNT(*) FROM schedule_entries WHERE status = 1")->fetchColumn();
-    $daysCovered = (int) db()->query("SELECT COUNT(DISTINCT day_of_week) FROM schedule_entries WHERE status = 1")->fetchColumn();
-    $teachersWithLoad = (int) db()->query("SELECT COUNT(DISTINCT teacher_id) FROM schedule_entries WHERE status = 1")->fetchColumn();
-    $sectionsCovered = (int) db()->query("SELECT COUNT(DISTINCT section_id) FROM schedule_entries WHERE status = 1")->fetchColumn();
+    $toMin = fn(string $t): int => (int) substr($t, 0, 2) * 60 + (int) substr($t, 3, 2);
+
+    // Visible window: whole hours covering every class, never less than 7 AM – 5 PM.
+    $winStart = 7 * 60; $winEnd = 17 * 60; $weekMinutes = 0;
+    foreach ($entries as $e) {
+        $winStart = min($winStart, intdiv($toMin($e['start_time']), 60) * 60);
+        $winEnd = max($winEnd, (int) ceil($toMin($e['end_time']) / 60) * 60);
+        $weekMinutes += $toMin($e['end_time']) - $toMin($e['start_time']);
+    }
+    $hours = intdiv($winEnd - $winStart, 60);
+
+    // Mon–Fri always; Saturday only when something is scheduled on it.
+    $calDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    foreach ($entries as $e) { if ($e['day_of_week'] === 'Saturday') { $calDays[] = 'Saturday'; break; } }
+
+    // Classes that overlap (only possible across teachers) sit side by side:
+    // group each day into overlapping clusters, then give every class a lane.
+    $byDay = array_fill_keys($calDays, []);
+    foreach ($entries as $e) { $byDay[$e['day_of_week']][] = $e; }
+    foreach ($byDay as &$list) {
+        $clusters = []; $cluster = []; $clusterEnd = -1;
+        foreach ($list as $i => $e) {
+            if ($cluster && $toMin($e['start_time']) >= $clusterEnd) { $clusters[] = $cluster; $cluster = []; $clusterEnd = -1; }
+            $cluster[] = $i;
+            $clusterEnd = max($clusterEnd, $toMin($e['end_time']));
+        }
+        if ($cluster) $clusters[] = $cluster;
+        foreach ($clusters as $cl) {
+            $laneEnds = [];
+            foreach ($cl as $i) {
+                $start = $toMin($list[$i]['start_time']);
+                $lane = count($laneEnds);
+                foreach ($laneEnds as $l => $end) { if ($end <= $start) { $lane = $l; break; } }
+                $laneEnds[$lane] = $toMin($list[$i]['end_time']);
+                $list[$i]['_lane'] = $lane;
+            }
+            foreach ($cl as $i) { $list[$i]['_lanes'] = count($laneEnds); }
+        }
+    }
+    unset($list);
+
+    // Stable colour per subject so the same subject reads the same all week.
+    $hues = [352, 212, 148, 32, 268, 186, 12, 300];
+    $hueFor = fn(int $subjectId): int => $hues[$subjectId % count($hues)];
+
+    $todayName = date('l');
+    $nowMin = $toMin(date('H:i'));
+    $hourLabel = fn(int $m): string => date('g A', mktime(intdiv($m, 60), 0));
+    // "8:00–9:00 AM" (one AM/PM when both ends share it) so narrow lanes don't wrap.
+    $shortRange = function (string $a, string $b): string {
+        $ta = strtotime($a); $tb = strtotime($b);
+        return date('A', $ta) === date('A', $tb)
+            ? date('g:i', $ta) . '–' . date('g:i A', $tb)
+            : date('g:i A', $ta) . '–' . date('g:i A', $tb);
+    };
 ?>
 
-<div class="page-intro">
+<div class="page-intro no-print">
     <div class="page-intro-main">
-        <h1>Teacher <em>Master Schedule</em></h1>
-        <p>Every class meeting — who teaches what, to whom, when, and where. Room, teacher & section conflicts are blocked automatically.</p>
-    </div>
-    <div class="page-intro-stats">
-        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><strong><?= $totalAll ?></strong><span>Classes</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><strong><?= $teachersWithLoad ?></strong><span>Teachers</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--info-light); color: var(--info);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c6 3 10 0 12-2v-5"/></svg></div><div><strong><?= $sectionsCovered ?></strong><span>Sections</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--warning-light); color: #B07D16;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></div><div><strong><?= $daysCovered ?>/6</strong><span>Days used</span></div></div>
+        <h1>Teacher <em>Schedule</em></h1>
+        <p>The weekly class program — who teaches what, to whom, when, and where. Pick a teacher to see their own week. Room, teacher & section conflicts are blocked automatically.</p>
     </div>
 </div>
 
 <div class="filter-pillbar">
-    <div class="fp-group" role="tablist" aria-label="Schedule view">
-        <a href="/admin/schedule.php<?= $dayFilter ? '?day=' . urlencode($dayFilter) : '' ?>" class="fp-pill <?= !$viewTeacher ? 'active' : '' ?>">By day</a>
-        <a href="/admin/schedule.php?view=teacher<?= $dayFilter ? '&day=' . urlencode($dayFilter) : '' ?>" class="fp-pill <?= $viewTeacher ? 'active' : '' ?>">By teacher</a>
-    </div>
     <form method="GET" class="fp-search" style="flex:1;">
-        <?php if ($viewTeacher): ?><input type="hidden" name="view" value="teacher"><?php endif; ?>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <select name="day" class="form-control" style="width:auto; max-width:170px; padding:0.45rem 1.9rem 0.45rem 0.9rem; border-radius:999px; font-size:0.82rem;" onchange="this.form.submit()">
-            <option value="">All days</option>
-            <?php foreach ($days as $d): ?>
-                <option value="<?= $d ?>" <?= $dayFilter === $d ? 'selected' : '' ?>><?= $d ?></option>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <select name="teacher_id" class="form-control" aria-label="Teacher" style="width:auto; max-width:260px; padding:0.45rem 1.9rem 0.45rem 0.9rem; border-radius:999px; font-size:0.82rem;" onchange="this.form.submit()">
+            <option value="">All teachers</option>
+            <?php foreach ($teachers as $t): ?>
+                <option value="<?= (int)$t['id'] ?>" <?= $teacherFilter === (int)$t['id'] ? 'selected' : '' ?>><?= h($t['first_name'] . ' ' . $t['last_name']) ?></option>
             <?php endforeach; ?>
         </select>
-        <?php if ($dayFilter): ?><a href="/admin/schedule.php<?= $viewTeacher ? '?view=teacher' : '' ?>" class="btn btn-sm btn-outline" style="border-radius:999px;">Clear</a><?php endif; ?>
-        <span class="text-xs text-muted nowrap" style="margin-left:0.5rem;"><?= count($entries) ?> <?= count($entries)===1?'class':'classes' ?></span>
+        <?php if ($teacherFilter): ?><a href="/admin/schedule.php" class="btn btn-sm btn-outline" style="border-radius:999px;">Show all</a><?php endif; ?>
+        <noscript><button type="submit" class="btn btn-sm btn-outline">Go</button></noscript>
     </form>
     <div class="fp-actions">
-        <a href="/admin/schedule.php?action=add" class="btn btn-primary btn-sm">+ Add Entry</a>
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">Print</button>
+        <a href="/admin/schedule.php?action=add<?= $teacherFilter ? '&teacher_id=' . $teacherFilter : '' ?>" class="btn btn-primary btn-sm">+ Add Class</a>
     </div>
 </div>
 
-<?php if (empty($entries)): ?>
+<?php if (empty($entries) && !$teacherFilter): ?>
     <div class="card">
         <div class="card-body">
             <div class="empty-state" style="padding: 3rem 1rem;">
                 <div class="empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-                <h3>No schedule entries</h3>
-                <p>The master schedule is empty. Define class meetings so teachers can take attendance.</p>
-                <a href="/admin/schedule.php?action=add" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">Create First Entry</a>
+                <h3>No classes scheduled yet</h3>
+                <p>Add class meetings so teachers can take attendance.</p>
+                <a href="/admin/schedule.php?action=add" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">Add First Class</a>
             </div>
         </div>
     </div>
 <?php else: ?>
-    <?php foreach ($grouped as $groupName => $groupEntries): ?>
-        <div class="card overflow-hidden" style="margin-bottom:1.25rem;">
-            <div class="card-header tinted">
-                <h3 style="font-family: var(--font-display); font-size:1.05rem; font-weight: 800; letter-spacing: -0.02em;"><?= h($groupName) ?></h3>
-                <span class="badge badge-info"><?= count($groupEntries) ?> <?= count($groupEntries)===1?'class':'classes' ?></span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <?php if ($viewTeacher): ?><th>Day</th><?php endif; ?>
-                                <th>Time</th><?php if (!$viewTeacher): ?><th>Teacher</th><?php endif; ?><th>Subject</th><th>Section</th><th>Room</th><th style="text-align:right;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($groupEntries as $e): ?>
-                                <tr>
-                                    <?php if ($viewTeacher): ?><td><span class="badge badge-info"><?= h($e['day_of_week']) ?></span></td><?php endif; ?>
-                                    <td><span class="badge badge-warning" style="font-variant-numeric: tabular-nums;"><?= format_time($e['start_time']) ?> — <?= format_time($e['end_time']) ?></span></td>
-                                    <?php if (!$viewTeacher): ?><td><a href="/admin/teachers.php?search=<?= urlencode($e['teacher_first'] . ' ' . $e['teacher_last']) ?>"><?= h($e['teacher_first'] . ' ' . $e['teacher_last']) ?></a></td><?php endif; ?>
-                                    <td><a href="/admin/subject.php?id=<?= (int)$e['subject_id'] ?>"><strong><?= h($e['subject_name']) ?></strong></a> <code style="font-size:0.70rem; margin-left:0.35rem;"><?= h($e['subject_code']) ?></code></td>
-                                    <td><a href="/admin/sections.php?search=<?= urlencode($e['section_name']) ?>"><span class="badge badge-success"><?= h($e['section_name']) ?></span></a></td>
-                                    <td><?= $e['room'] ? '<code>'.h($e['room']).'</code>' : '<span class="text-muted">—</span>' ?></td>
-                                    <td style="text-align:right;">
-                                        <div class="flex gap-1" style="justify-content:flex-end;">
-                                            <a href="/admin/schedule.php?action=edit&id=<?= $e['id'] ?>" class="btn btn-sm btn-outline">Edit</a>
-                                            <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this entry?')">
-                                                <input type="hidden" name="submit_action" value="delete">
-                                                <input type="hidden" name="id" value="<?= $e['id'] ?>">
-                                                <?= csrf_field() ?>
-                                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+    <div class="print-only cal-print-head">
+        <h2>Class Schedule — <?= $selectedTeacher ? h($selectedTeacher['first_name'] . ' ' . $selectedTeacher['last_name']) : 'All Teachers' ?></h2>
+        <p><?= config('school_name') ?> · S.Y. <?= config('academic_year') ?></p>
+    </div>
+
+    <div class="card cal-card">
+        <div class="card-header tinted no-print">
+            <h3><?= $selectedTeacher ? h($selectedTeacher['first_name'] . ' ' . $selectedTeacher['last_name']) : 'All teachers' ?></h3>
+            <span class="badge badge-info"><?= count($entries) ?> <?= count($entries) === 1 ? 'class' : 'classes' ?> · <?= rtrim(rtrim(number_format($weekMinutes / 60, 1), '0'), '.') ?> hrs / week</span>
+        </div>
+        <?php if (empty($entries)): ?>
+            <p class="cal-empty no-print">No classes for this teacher yet — use <strong>+ Add Class</strong> to build their week.</p>
+        <?php endif; ?>
+        <div class="cal-scroll">
+            <div class="cal" style="--hours: <?= $hours ?>; --cols: <?= count($calDays) ?>;">
+                <div class="cal-corner"></div>
+                <?php foreach ($calDays as $d): ?>
+                    <div class="cal-dayhead <?= $d === $todayName ? 'is-today' : '' ?>">
+                        <?= $d ?>
+                        <span><?= count($byDay[$d]) ?> <?= count($byDay[$d]) === 1 ? 'class' : 'classes' ?></span>
+                    </div>
+                <?php endforeach; ?>
+
+                <div class="cal-times" aria-hidden="true">
+                    <?php for ($i = 0; $i < $hours; $i++): ?>
+                        <span style="--i: <?= $i ?>;"><?= $hourLabel($winStart + $i * 60) ?></span>
+                    <?php endfor; ?>
                 </div>
+                <?php foreach ($calDays as $d): ?>
+                    <div class="cal-col <?= $d === $todayName ? 'is-today' : '' ?>">
+                        <?php if ($d === $todayName && $nowMin > $winStart && $nowMin < $winEnd): ?>
+                            <div class="cal-now no-print" style="--top: <?= round(($nowMin - $winStart) / 60, 4) ?>;" aria-hidden="true"></div>
+                        <?php endif; ?>
+                        <?php foreach ($byDay[$d] as $e):
+                            $startM = $toMin($e['start_time']); $endM = $toMin($e['end_time']);
+                            $teacherName = $e['teacher_first'] . ' ' . $e['teacher_last'];
+                            $timeRange = $shortRange($e['start_time'], $e['end_time']);
+                            $tip = $e['subject_name'] . ' · ' . $e['section_name'] . ' · ' . $timeRange . ($e['room'] ? ' · ' . $e['room'] : '') . ' · ' . $teacherName;
+                        ?>
+                            <a class="cal-block <?= $endM - $startM <= 45 ? 'is-short' : '' ?> <?= $endM - $startM <= 60 ? 'is-hour' : '' ?>"
+                               href="/admin/schedule.php?action=edit&id=<?= (int)$e['id'] ?>"
+                               title="<?= h($tip) ?> — click to edit"
+                               style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round(($endM - $startM) / 60, 4) ?>; --lane: <?= (int)$e['_lane'] ?>; --lanes: <?= (int)$e['_lanes'] ?>; --h: <?= $hueFor((int)$e['subject_id']) ?>;">
+                                <span class="cb-time"><?= h($timeRange) ?></span>
+                                <strong><?= h($e['subject_name']) ?></strong>
+                                <span class="cb-meta"><?= h($e['section_name']) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?></span>
+                                <?php if (!$teacherFilter): ?><span class="cb-meta cb-teacher"><?= h($teacherName) ?></span><?php endif; ?>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endforeach; ?>
             </div>
         </div>
-    <?php endforeach; ?>
+    </div>
+    <style>@media print { @page { size: landscape; margin: 10mm; } }</style>
 <?php endif; ?>
-
-<style>
-    .table td { vertical-align: middle; }
-</style>
 
 <?php
 }

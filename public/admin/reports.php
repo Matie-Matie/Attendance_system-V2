@@ -114,20 +114,14 @@ if ($export === 'csv') {
 ob_start();
 ?>
 
-<div class="page-intro" style="margin-bottom:1.5rem;">
+<div class="page-intro no-print" style="margin-bottom:1.5rem;">
     <div class="page-intro-main">
-        <h1>Reports <em><?= $totalRecords ?></em></h1>
+        <h1>Reports</h1>
         <p>Filter by date, teacher, section, subject, or status. Export clean CSV for records — formula-injection safe.</p>
-    </div>
-    <div class="page-intro-stats">
-        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><strong><?= $totalRecords ?></strong><span>Records</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><strong><?= $presentCount ?></strong><span>Present</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--warning-light); color: #B07D16;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><strong><?= $lateCount ?></strong><span>Late</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--danger-light); color: var(--danger);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><strong><?= $absentCount ?></strong><span>Absent</span></div></div>
     </div>
 </div>
 
-<div class="card mb-3" style="border-radius: 22px;">
+<div class="card mb-3 no-print" style="border-radius: 22px;">
     <div class="card-header">
         <h3>Filter Reports</h3>
         <div class="flex gap-1">
@@ -211,13 +205,8 @@ ob_start();
     </div>
 </div>
 
-<div class="print-only print-report-head">
-    <h2><?= config('school_name') ?> — Attendance Report</h2>
-    <p><?= h($dateFrom) ?> → <?= h($dateTo) ?><?= $statusFilter ? ' · ' . h(ucfirst($statusFilter)) : '' ?> · <?= count($records) ?> records</p>
-</div>
-
 <!-- Summary -->
-<div class="summary-grid">
+<div class="summary-grid no-print">
     <div class="summary-card"><div class="number"><?= $totalRecords ?></div><div class="label">Total Records</div></div>
     <div class="summary-card is-present"><div class="number"><?= $presentCount ?></div><div class="label">Present</div></div>
     <div class="summary-card is-late"><div class="number"><?= $lateCount ?></div><div class="label">Late</div></div>
@@ -225,8 +214,8 @@ ob_start();
 </div>
 
 <!-- Records Table -->
-<div class="card">
-    <div class="card-header">
+<div class="card report-table-card">
+    <div class="card-header no-print">
         <h3>Attendance Records</h3>
         <span class="text-muted" style="font-size:0.85rem;">
             Showing <?= count($records) ?> of <?= $totalRecords ?> records

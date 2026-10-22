@@ -74,13 +74,8 @@ ob_start();
 
 <div class="page-intro">
     <div class="page-intro-main">
-        <h1>Notifications <em><?= $pendingCount ? $pendingCount.' pending' : 'All sent' ?></em></h1>
+        <h1>Notifications</h1>
         <p>Parent emails — at most 2 per student per day: arrival (or absent) + dismissal. Queued automatically when they scan. Text-message (SMS) sending is optional and not turned on — this page sends email only.</p>
-    </div>
-    <div class="page-intro-stats">
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><strong><?= $sentToday ?></strong><span>Sent today</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--warning-light); color: #B07D16;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><strong><?= $pendingCount ?></strong><span>Pending</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--danger-light); color: var(--danger);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><strong><?= $failedCount ?></strong><span>Failed</span></div></div>
     </div>
 </div>
 

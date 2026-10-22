@@ -2515,3 +2515,155 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
     transform: translateX(-50%);
 }
 .att-tip::after { right: auto; left: 50%; margin-left: -5px; }
+
+/* ============================================================
+   v2.4 — 2026-10-22 · sir Vic revisions
+   1. Sidebar scrolls on its own (it was fixed + uncapped, so the
+      bottom links were unreachable on 768px-tall screens)
+   2. Page intros are title-only now (stat cards live on dashboards)
+   3. Report print = the table only
+   4. Teacher Schedule weekly calendar
+   ============================================================ */
+
+/* --- 1. sidebar scroll ---------------------------------------------- */
+.sidebar {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+.sidebar-header, .sidebar-footer { flex-shrink: 0; }
+@media (max-width: 768px) {
+    .sidebar { height: auto; overflow-y: visible; }
+}
+
+/* --- 2. title-only page intro ---------------------------------------- */
+.page-intro { grid-template-columns: 1fr; }
+
+/* --- 3. print: the table only ---------------------------------------- */
+@media print {
+    .main-content { width: auto !important; overflow: visible !important; }
+    .layout, html, body { overflow: visible !important; }
+    .reveal { opacity: 1 !important; transform: none !important; }
+    .report-table-card { border: none; break-inside: auto; }
+    .report-table-card .table-responsive { max-height: none !important; overflow: visible !important; }
+    .report-table-card thead { display: table-header-group; }
+    .report-table-card tr { break-inside: avoid; }
+}
+
+/* --- 4. Teacher Schedule calendar ------------------------------------ */
+.cal-card { overflow: hidden; }
+.cal-empty { margin: 0; padding: 0.9rem 1.25rem 0; color: var(--text-muted); font-size: 0.88rem; }
+.cal-scroll { overflow-x: auto; }
+.cal {
+    --hour: 4.6rem;
+    --axis: 4.4rem;
+    display: grid;
+    grid-template-columns: var(--axis) repeat(var(--cols), minmax(9.5rem, 1fr));
+    min-width: calc(var(--axis) + var(--cols) * 9.5rem);
+    padding: 0 0.75rem 0.9rem 0;
+}
+.cal-corner, .cal-dayhead {
+    border-bottom: 1px solid var(--border-color);
+}
+.cal-dayhead {
+    padding: 0.85rem 0.8rem 0.7rem;
+    font-weight: 800;
+    font-size: 0.92rem;
+    letter-spacing: -0.01em;
+    border-left: 1px solid var(--border-color);
+}
+.cal-dayhead span { display: block; margin-top: 0.15rem; font-size: 0.7rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.cal-dayhead.is-today { color: var(--primary); }
+.cal-dayhead.is-today span { color: var(--primary); opacity: 0.75; }
+.cal-times, .cal-col { position: relative; height: calc(var(--hours) * var(--hour)); }
+.cal-times span {
+    position: absolute;
+    top: calc(var(--i) * var(--hour) + 0.3rem);
+    right: 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.cal-col {
+    border-left: 1px solid var(--border-color);
+    background-image:
+        repeating-linear-gradient(to bottom, var(--border-color) 0 1px, transparent 1px var(--hour)),
+        repeating-linear-gradient(to bottom, transparent 0 calc(var(--hour) / 2), rgba(127, 110, 95, 0.07) calc(var(--hour) / 2) calc(var(--hour) / 2 + 1px), transparent calc(var(--hour) / 2 + 1px) var(--hour));
+}
+.cal-col.is-today { background-color: rgba(192, 0, 0, 0.035); }
+[data-theme="dark"] .cal-col.is-today { background-color: rgba(225, 28, 56, 0.07); }
+.cal-now {
+    position: absolute; left: 0; right: 0; z-index: 3;
+    top: calc(var(--top) * var(--hour));
+    height: 2px; background: var(--primary);
+    pointer-events: none;
+}
+.cal-now::before {
+    content: ""; position: absolute; left: -5px; top: -4px;
+    width: 10px; height: 10px; border-radius: 50%; background: var(--primary);
+}
+.cal-block {
+    position: absolute;
+    top: calc(var(--top) * var(--hour) + 2px);
+    height: calc(var(--len) * var(--hour) - 4px);
+    left: calc(var(--lane) / var(--lanes) * 100% + 4px);
+    width: calc(100% / var(--lanes) - 8px);
+    display: flex; flex-direction: column; gap: 0.08rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 12px;
+    border: 1px solid hsl(var(--h) 55% 86%);
+    border-left: 4px solid hsl(var(--h) 62% 44%);
+    background: hsl(var(--h) 80% 96.5%);
+    color: hsl(var(--h) 45% 22%);
+    font-size: 0.76rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.cal-block:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(40, 20, 10, 0.14); z-index: 2; color: hsl(var(--h) 45% 22%); }
+.cal-block:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; z-index: 2; }
+.cal-block strong { font-size: 0.86rem; font-weight: 800; letter-spacing: -0.01em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-block .cb-time { font-size: 0.7rem; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0.8; }
+.cal-block .cb-meta { opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-block .cb-teacher { font-weight: 600; }
+.cal-block.is-short { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0.4rem; padding-block: 0.25rem; }
+.cal-block.is-short .cb-meta { display: none; }
+@media (max-width: 1400px) {
+    .cal { grid-template-columns: var(--axis) repeat(var(--cols), minmax(7.4rem, 1fr)); min-width: calc(var(--axis) + var(--cols) * 7.4rem); }
+}
+[data-theme="dark"] .cal-block {
+    background: hsl(var(--h) 32% 17% / 0.92);
+    border-color: hsl(var(--h) 30% 28%);
+    border-left-color: hsl(var(--h) 70% 62%);
+    color: hsl(var(--h) 55% 88%);
+}
+[data-theme="dark"] .cal-block:hover { color: hsl(var(--h) 55% 92%); }
+.schedule-delete { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed var(--border-color); }
+.cal-print-head { margin: 0 0 0.6rem; }
+.cal-print-head h2 { font-size: 1.15rem; margin: 0 0 0.15rem; }
+.cal-print-head p { font-size: 0.8rem; color: #444; margin: 0; }
+@media print {
+    .page-header::before { display: none; }
+    .cal-card { border: 1px solid #999 !important; break-inside: auto; }
+    .cal-scroll { overflow: visible; }
+    .cal { --hour: 2.85rem; min-width: 0; padding: 0; grid-template-columns: 3.4rem repeat(var(--cols), 1fr); }
+    .cal-block { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: none; transform: none; }
+    .cal-col {
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+        background-image: repeating-linear-gradient(to bottom, #d8d2ca 0 1px, transparent 1px var(--hour));
+    }
+    .cal-block { padding: 0.15rem 0.35rem; font-size: 0.66rem; border-radius: 6px; gap: 0; }
+    .cal-block strong { font-size: 0.74rem; }
+    .cal-block .cb-time { font-size: 0.6rem; }
+    .cal-block.is-hour { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0.3rem; }
+    .cal-block.is-hour .cb-meta { flex-basis: 100%; }
+    .cal-block.is-hour .cb-teacher { display: none; }
+    .cal-col.is-today { background-color: transparent; }
+    .cal-dayhead.is-today, .cal-dayhead.is-today span { color: inherit; }
+}

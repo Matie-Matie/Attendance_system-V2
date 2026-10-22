@@ -191,14 +191,8 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
 ?>
 <div class="page-intro">
     <div class="page-intro-main">
-        <h1>Students <em><?= $totalAll ?></em></h1>
+        <h1>Students</h1>
         <p>Every learner in one place — enrol, assign to section, attach parent contacts for email notifications, and generate QR cards.</p>
-    </div>
-    <div class="page-intro-stats">
-        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><strong><?= $totalAll ?></strong><span>Enrolled</span></div></div>
-        <div class="mini-stat"><div class="ms-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c6 3 10 0 12-2v-5"/></svg></div><div><strong><?= $withSection ?></strong><span>With section</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--success-light); color: var(--success);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div><strong><?= $g11 ?></strong><span>Grade 11</span></div></div>
-        <div class="mini-stat"><div class="ms-icon" style="background: var(--info-light); color: var(--info);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div><div><strong><?= $g12 ?></strong><span>Grade 12</span></div></div>
     </div>
 </div>
 

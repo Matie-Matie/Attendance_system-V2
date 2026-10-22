@@ -8,6 +8,16 @@
 >
 > (Older web demo: https://scpls.xo.je — 2026-10-14 build. The school now runs it locally.)
 
+## October 2026 revisions (sir Vic, round 3 — 2026-10-22)
+
+- **Teacher Schedule is a calendar** — the old day-by-day tables are now a weekly class program (Mon–Fri, Saturday when used; 7 AM–5 PM grid). Pick a teacher to see only their week; click any class to edit or delete it. Prints on one landscape page.
+- **"Teacher Schedule"** — renamed from "Teachers Master Schedule".
+- **Menu order** — Dashboard → Teacher Schedule → Students, then **School Records** (Subjects, Sections, School Years, Teachers), then System.
+- **Stat cards only on the dashboard** — list pages no longer show the count beside the title or the stat cards at the top.
+- **Semesters merged into the school year** — no more semester screen or semester field; each school year is one term. (Database unchanged: a hidden "Whole Year" term is created automatically.)
+- **Report printing** — Print now outputs the attendance table only (teacher and admin).
+- **Sidebar scrolls** — on short screens the menu scrolls on its own, so Logout is always reachable.
+
 ## October 2026 revisions (teacher feedback, round 2 — 2026-10-21)
 
 - **Full name on the front page** — the login page, browser tab and sidebars now say *Smart Class Presence Log-in System · Monico Rarama National High School* instead of just "SCPLS".
