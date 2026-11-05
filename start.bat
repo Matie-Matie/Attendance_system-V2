@@ -12,29 +12,38 @@ rem ============================================================
 title SCPLS v2 - Attendance System
 cd /d "%~dp0"
 set PORT=8000
+set "TMPF=%TEMP%\scpls_q.txt"
 
 goto check_php
 
+rem ---------- PHP (PATH first, then the normal XAMPP folder) ----------
 :check_php
+set PHP=
 where php >nul 2>nul
-if errorlevel 1 goto no_php
+if not errorlevel 1 set PHP=php
+if not defined PHP if exist "C:\xampp\php\php.exe" set PHP="C:\xampp\php\php.exe"
+if not defined PHP goto no_php
 goto check_mysql
 
 :no_php
 echo.
 echo  [ERROR] PHP was not found on this computer.
-echo  Install XAMPP (with PHP and MySQL) first, then double-click again.
+echo  Install XAMPP (with PHP and MySQL) in C:\xampp, then double-click again.
 echo.
 pause
 exit /b 1
 
+rem ---------- MySQL client (PATH first, then the normal XAMPP folder) ----------
 :check_mysql
 set MYSQL=
+set MYSQLDUMP=
 where mysql >nul 2>nul
 if not errorlevel 1 set MYSQL=mysql
+if not errorlevel 1 set MYSQLDUMP=mysqldump
 if not defined MYSQL if exist "C:\xampp\mysql\bin\mysql.exe" set MYSQL="C:\xampp\mysql\bin\mysql.exe"
+if not defined MYSQLDUMP if exist "C:\xampp\mysql\bin\mysqldump.exe" set MYSQLDUMP="C:\xampp\mysql\bin\mysqldump.exe"
 if not defined MYSQL goto no_mysql
-goto check_db
+goto check_mysql_up
 
 :no_mysql
 echo.
@@ -47,6 +56,37 @@ echo.
 pause
 exit /b 1
 
+rem ---------- MySQL must be running (checked on EVERY start) ----------
+:check_mysql_up
+%MYSQL% -h127.0.0.1 -uroot -e "SELECT 1" >nul 2>nul
+if errorlevel 1 goto mysql_down
+goto check_running
+
+:mysql_down
+echo.
+echo  [ERROR] MySQL is not running.
+echo  1. Open XAMPP Control Panel
+echo  2. Press Start on MySQL (Apache is not needed)
+echo  3. Wait until MySQL turns green, then double-click this file again
+echo  If it still fails, take a photo of this window and send it to Mat.
+echo.
+pause
+exit /b 1
+
+rem ---------- Already running? Just open the browser ----------
+:check_running
+netstat -ano | findstr /c:":%PORT% " | findstr /c:"LISTENING" >nul 2>nul
+if errorlevel 1 goto check_db
+echo.
+echo  SCPLS v2 already seems to be running (port %PORT% is in use).
+echo  Opening it in your browser. Use the OTHER black window that is
+echo  already open - you can close this one.
+echo.
+start "" "http://127.0.0.1:%PORT%"
+timeout /t 5 /nobreak >nul
+exit /b 0
+
+rem ---------- Database setup (first run only) ----------
 :check_db
 if exist "storage\.first-run-done" goto start_server
 goto first_db
@@ -54,37 +94,66 @@ goto first_db
 :first_db
 echo.
 echo  First-time setup - preparing the database. Please wait...
-echo  NOTE: open XAMPP Control Panel and press Start on MySQL first.
-echo  (Apache is NOT needed - this system brings its own server.)
 echo.
+set DBCNT=0
+%MYSQL% -h127.0.0.1 -uroot -N -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='scpls_v2'" > "%TMPF%" 2>nul
+set /p DBCNT=<"%TMPF%"
+del "%TMPF%" >nul 2>nul
+if "%DBCNT%"=="0" goto full_setup
+rem  The database exists - is it complete?
 %MYSQL% -h127.0.0.1 -uroot -e "SELECT 1 FROM scpls_v2.users LIMIT 1" >nul 2>nul
-if errorlevel 1 goto full_setup
+if errorlevel 1 goto half_built
 %MYSQL% -h127.0.0.1 -uroot -N -e "SELECT type FROM scpls_v2.sms_logs LIMIT 1" >nul 2>nul
 if errorlevel 1 goto half_built
 goto seed_check
 
 :half_built
-echo  The database looks half-built - rebuilding it cleanly...
-echo  (This only happens before first successful setup. No real data exists yet.)
+rem  Partly created (an earlier setup stopped halfway). Only rebuild it
+rem  when it holds NO attendance records - real data is never deleted.
+set RECCNT=0
+%MYSQL% -h127.0.0.1 -uroot -N -e "SELECT COUNT(*) FROM scpls_v2.attendance_records" > "%TMPF%" 2>nul
+set /p RECCNT=<"%TMPF%"
+del "%TMPF%" >nul 2>nul
+if not "%RECCNT%"=="0" goto has_data
+echo  The database was only partly created last time - rebuilding it cleanly...
+if not exist "storage\backups" mkdir "storage\backups"
+if defined MYSQLDUMP %MYSQLDUMP% -h127.0.0.1 -uroot --force scpls_v2 > "storage\backups\scpls_v2-before-rebuild-%RANDOM%.sql" 2>nul
 %MYSQL% -h127.0.0.1 -uroot -e "DROP DATABASE IF EXISTS scpls_v2" >nul 2>nul
+if errorlevel 1 goto db_fail
+
 :full_setup
 echo  Creating database and tables...
 %MYSQL% -h127.0.0.1 -uroot < "database\schema.sql"
 if errorlevel 1 goto db_fail
+goto do_seed
+
 :seed_check
-%MYSQL% -h127.0.0.1 -uroot -N -e "SELECT COUNT(*) FROM scpls_v2.users" > "%TEMP%\scpls_cnt.txt" 2>nul
-set /p USERCNT=<"%TEMP%\scpls_cnt.txt"
-del "%TEMP%\scpls_cnt.txt" >nul 2>nul
-if "%USERCNT%"=="0" goto do_seed
-echo  Database already has accounts - skipping starter data.
+set USERCNT=1
+%MYSQL% -h127.0.0.1 -uroot -N -e "SELECT COUNT(*) FROM scpls_v2.users" > "%TMPF%" 2>nul
+set /p USERCNT=<"%TMPF%"
+del "%TMPF%" >nul 2>nul
+rem  No accounts at all = the starter data never loaded; rebuild cleanly.
+if "%USERCNT%"=="0" goto half_built
+echo  Database already has accounts - keeping it as is.
 goto db_done
+
 :do_seed
 echo  Loading starter data (users, students, schedule)...
 %MYSQL% -h127.0.0.1 -uroot < "database\seed.sql"
 if errorlevel 1 goto db_fail
+
 :db_done
 echo DONE > "storage\.first-run-done"
 goto start_server
+
+:has_data
+echo.
+echo  [STOP] The scpls_v2 database already has attendance records, but
+echo  some of its tables are missing. Nothing was changed, to protect
+echo  your data. Take a photo of this window and send it to Mat.
+echo.
+pause
+exit /b 1
 
 :db_fail
 echo.
@@ -97,6 +166,7 @@ echo.
 pause
 exit /b 1
 
+rem ---------- Start ----------
 :start_server
 echo.
 echo  ============================================================
@@ -109,7 +179,7 @@ echo  ============================================================
 echo.
 timeout /t 3 /nobreak >nul
 start "" "http://127.0.0.1:%PORT%"
-call php -S 127.0.0.1:%PORT% -t public
+call %PHP% -S 127.0.0.1:%PORT% -t public
 echo.
 echo  The system has stopped. You may close this window.
 pause
