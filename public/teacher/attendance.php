@@ -194,6 +194,12 @@ if (!$session && !$scheduleId && !$sessionId) {
     redirect('/teacher/dashboard.php');
 }
 
+if (!$session) {
+    // Old/deleted session link (e.g. a stale bookmark or tab) - don't render a broken page
+    flash('info', 'That attendance session was not found. Start or resume your class from the dashboard.');
+    redirect('/teacher/dashboard.php');
+}
+
 ob_start();
 ?>
 
@@ -250,6 +256,50 @@ ob_start();
         color: var(--text-muted);
         font-family: monospace;
     }
+
+    /* ---------- Scan mode: camera fills the whole screen ---------- */
+    .scan-mode-btn { display: flex; align-items: center; gap: 0.5rem; margin: -0.5rem auto 0.75rem; }
+    .sm-only { display: none !important; }
+    body.scan-mode .sm-only { display: inline-flex !important; }
+    body.scan-mode { overflow: hidden; }
+    /* The page-entry animation leaves a transform on this wrapper, which would
+       trap the fixed full-screen camera inside the content area. */
+    body.scan-mode .attendance-station { transform: none !important; animation: none !important; }
+    body.scan-mode .camera-shell {
+        position: fixed; inset: 0; z-index: 1000;
+        max-width: none !important; margin: 0 !important;
+        border-radius: 0; border: 0;
+        display: flex; align-items: center; justify-content: center;
+    }
+    body.scan-mode .camera-shell #qr-reader {
+        width: min(100vw, calc((100vh - 9rem) * 4 / 3)) !important;
+        padding: 4.5rem 0 4.5rem; border: 0 !important;
+    }
+    body.scan-mode .camera-shell video { width: 100% !important; max-height: calc(100vh - 9rem); object-fit: contain; }
+    body.scan-mode .camera-topbar { font-size: 1rem; padding: 1rem 1.25rem; }
+    body.scan-mode .camera-bottombar { padding: 1rem 1.25rem; }
+    body.scan-mode .camera-bottombar > span:first-child { font-size: 1.15rem !important; }
+    .sm-counts { gap: 0.4rem; font-weight: 700; }
+    .sm-counts span { padding: 0.25rem 0.65rem; border-radius: 999px; background: rgba(255,255,255,0.16); }
+    .sm-exit {
+        position: absolute; top: 0.85rem; right: 1rem; z-index: 6;
+        pointer-events: auto; cursor: pointer;
+        padding: 0.55rem 1rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.35);
+        background: rgba(0,0,0,0.55); color: #fff; font-weight: 700; font-size: 0.9rem;
+    }
+    body.scan-mode .camera-topbar { padding-right: 11rem; }
+    body.scan-mode .attendance-success { z-index: 1100; padding: 2.5rem 4rem; min-width: min(90vw, 560px); }
+    body.scan-mode .attendance-success h2 { font-size: 3rem; line-height: 1.1; }
+    body.scan-mode .attendance-success p:first-of-type { font-size: 2rem; font-weight: 700; color: var(--text-primary); }
+    .scan-error-overlay {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        z-index: 1100; min-width: min(90vw, 560px); max-width: 90vw;
+        padding: 2.5rem 3rem; border-radius: var(--radius-lg); text-align: center;
+        background: var(--bg-secondary); box-shadow: var(--shadow-lg);
+        border-top: 8px solid var(--danger); animation: fadeIn 0.3s ease-out;
+    }
+    .scan-error-overlay h2 { color: var(--danger); font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .scan-error-overlay p { font-size: 1.4rem; color: var(--text-primary); }
 </style>
 
 <div class="attendance-station">
@@ -289,7 +339,13 @@ ob_start();
                 <div class="camera-topbar">
                     <span class="ct-live"><span class="blip"></span> Live</span>
                     <span style="font-weight:700; letter-spacing:0.02em;"><?= h($session['subject_name']) ?> • <?= h($session['section_name']) ?></span>
+                    <span class="sm-only sm-counts" aria-live="polite">
+                        <span>Present <b id="sm-present">0</b></span>
+                        <span>Late <b id="sm-late">0</b></span>
+                        <span>Waiting <b id="sm-pending">0</b></span>
+                    </span>
                 </div>
+                <button type="button" class="sm-only sm-exit" onclick="exitScanMode()">&#10005; Exit scan mode</button>
                 <div id="qr-reader"></div>
                 <div class="camera-bottombar">
                     <span style="font-size:0.78rem; opacity:0.9;">Align QR in frame • Auto-capture • <span id="scan-status-text" style="font-weight:700;">Waiting for QR…</span></span>
@@ -298,7 +354,11 @@ ob_start();
                 <!-- hidden status mirror for JS compatibility -->
                 <div id="scan-status" class="scan-status scanning" style="display:none;">Waiting for student QR...</div>
             </div>
-            <p class="text-xs text-muted" style="text-align:center; margin: -0.5rem 0 1.25rem;">Have the student hold their QR card up to the camera. The system marks present/late automatically.</p>
+            <button type="button" class="btn btn-primary scan-mode-btn" onclick="enterScanMode()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>
+                Scan mode (full screen)
+            </button>
+            <p class="text-xs text-muted" style="text-align:center; margin: 0 0 1.25rem;">Have the student hold their QR card up to the camera. The system marks present/late automatically. Scan mode shows only the camera so students can see it from afar (Esc to exit).</p>
         <?php endif; ?>
 
         <!-- Student List -->
@@ -347,7 +407,7 @@ ob_start();
     <?php endif; ?>
 </div>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="/assets/vendor/html5-qrcode-2.3.8.min.js"></script>
 <script>
 const SESSION_ID = <?= $sessionId ?>;
 const STUDENTS = <?= json_encode($sectionStudents) ?>;
@@ -368,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (badge) {
         new MutationObserver(() => {
             const cls = hidden.className;
-            if (cls.includes('error')) { badge.textContent = '● Error'; badge.style.background = 'rgba(220,74,74,0.85)'; }
+            if (cls.includes('error')) { badge.textContent = '● Error'; badge.style.background = 'rgba(220,74,74,0.85)'; showScanError(hidden.textContent); }
             else if (cls.includes('success')) { badge.textContent = '● Success'; badge.style.background = 'rgba(75,126,46,0.85)'; }
             else { badge.textContent = '● Ready'; badge.style.background = 'rgba(255,255,255,0.16)'; }
         }).observe(hidden, { attributes: true, attributeFilter: ['class'] });
@@ -382,7 +442,7 @@ function startQrScanner() {
         'qr-reader',
         {
             fps: 10,
-            qrbox: { width: 250, height: 250 },
+            qrbox: (w, h) => { const s = Math.max(200, Math.floor(Math.min(w, h) * 0.6)); return { width: s, height: s }; },
             rememberLastUsedCamera: true,
         },
         false
@@ -490,6 +550,62 @@ function showSuccess(name, status) {
         const el = document.getElementById('success-overlay');
         if (el) el.remove();
     }, 2000);
+}
+
+// ---------- Scan mode ----------
+function inScanMode() { return document.body.classList.contains('scan-mode'); }
+
+function restartIfIdle() {
+    // The scanner measures its box size when it starts, so restart it after the
+    // camera area changes size (skipped while a scan is being processed).
+    if (!isScanning || !html5QrCode) return;
+    setTimeout(async () => {
+        try { await html5QrCode.clear(); } catch (e) {} // clear() is async - wait for it
+        startQrScanner();
+    }, 150);
+}
+
+function enterScanMode() {
+    if (inScanMode()) return;
+    document.body.classList.add('scan-mode');
+    syncScanCounts();
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); // hides the browser bars too
+    restartIfIdle();
+}
+
+function exitScanMode() {
+    if (!inScanMode()) return;
+    document.body.classList.remove('scan-mode');
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    restartIfIdle();
+}
+
+// Esc leaves browser full screen first; follow it out of scan mode too.
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) exitScanMode(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') exitScanMode(); });
+
+function syncScanCounts() {
+    [['present', 'sm-present'], ['late', 'sm-late'], ['pending', 'sm-pending']].forEach(([k, id]) => {
+        const src = document.getElementById(k + '-count'), dst = document.getElementById(id);
+        if (src && dst) dst.textContent = src.textContent.trim();
+    });
+}
+setInterval(syncScanCounts, 1000);
+
+function showScanError(message) {
+    if (!inScanMode()) return;
+    const old = document.getElementById('scan-error-overlay');
+    if (old) old.remove();
+    const box = document.createElement('div');
+    box.className = 'scan-error-overlay';
+    box.id = 'scan-error-overlay';
+    box.setAttribute('role', 'alert');
+    const h = document.createElement('h2'); h.textContent = 'Not recorded';
+    const p = document.createElement('p'); p.textContent = message || 'Please try again.';
+    box.append(h, p);
+    document.body.appendChild(box);
+    setTimeout(() => { if (box.isConnected) box.remove(); }, 2500);
 }
 
 // Session timer
