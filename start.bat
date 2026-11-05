@@ -15,21 +15,49 @@ set PORT=8000
 set "TMPF=%TEMP%\scpls_q.txt"
 set "LOG=%TEMP%\scpls_setup_log.txt"
 
-goto check_php
+goto check_mysql
 
-rem ---------- PHP (PATH first, then the normal XAMPP folder) ----------
+rem ---------- PHP (XAMPP first, then PATH) ----------
+rem  XAMPP's PHP has the MySQL driver switched on. A separate PHP on PATH
+rem  (WinGet/zip install, no php.ini) often does NOT - the site then shows
+rem  "temporarily unavailable" with "could not find driver" in this window.
 :check_php
 set PHP=
+set PHPEXT=
+if defined SRVDIR if exist "%SRVDIR%..\..\php\php.exe" for %%I in ("%SRVDIR%..\..\php\php.exe") do set PHP="%%~fI"
+for %%D in (C D E) do if not defined PHP if exist "%%D:\xampp\php\php.exe" set PHP="%%D:\xampp\php\php.exe"
+if defined PHP goto php_driver
 where php >nul 2>nul
-if not errorlevel 1 set PHP=php
-if not defined PHP if exist "C:\xampp\php\php.exe" set PHP="C:\xampp\php\php.exe"
-if not defined PHP goto no_php
-goto check_mysql
+if errorlevel 1 goto no_php
+set PHP=php
+rem  PATH PHP: switch on any missing extensions from its own ext folder.
+set PHPDIR=
+for /f "delims=" %%P in ('php -r "echo dirname(realpath(PHP_BINARY));" 2^>nul') do set "PHPDIR=%%P"
+for %%E in (pdo_mysql mbstring openssl) do (
+    php -m 2>nul | findstr /i /r /c:"^%%E" >nul || call set "PHPEXT=%%PHPEXT%% -d extension=%%E"
+)
+if defined PHPEXT if defined PHPDIR set PHP=php -d extension_dir="%PHPDIR%\ext"%PHPEXT%
+
+:php_driver
+rem  (php -m ends lines with LF only, so findstr /x never matches - use ^)
+%PHP% -m 2>nul | findstr /i /r /c:"^pdo_mysql" >nul
+if errorlevel 1 goto no_driver
+goto check_mysql_up
 
 :no_php
 echo.
 echo  [ERROR] PHP was not found on this computer.
 echo  Install XAMPP (with PHP and MySQL) in C:\xampp, then double-click again.
+echo.
+pause
+exit /b 1
+
+:no_driver
+echo.
+echo  [ERROR] The PHP on this computer cannot talk to MySQL (pdo_mysql is off).
+echo  PHP used: %PHP%
+echo  Install XAMPP in C:\xampp (it includes the right PHP), then double-click
+echo  this file again. If it still fails, take a photo and send it to Mat.
 echo.
 pause
 exit /b 1
@@ -44,6 +72,7 @@ rem  without CALL ends this script = the window just closes).
 set MYSQL=
 set MYSQLDUMP=
 set SRVCLIENT=
+set SRVDIR=
 set DBPORT=
 for /f "usebackq tokens=1,2 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0database\find-mysql.ps1" 2^>nul`) do (
     set "SRVCLIENT=%%A"
@@ -72,7 +101,7 @@ if not errorlevel 1 set MYSQLDUMP=call mysqldump -P%DBPORT%
 if not defined MYSQL goto no_mysql
 rem  The PHP app reads this so it talks to the same port.
 set SCPLS_DB_PORT=%DBPORT%
-goto check_mysql_up
+goto check_php
 
 :no_mysql
 echo.
