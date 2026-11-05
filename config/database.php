@@ -4,7 +4,8 @@
  */
 return [
     'host'     => '127.0.0.1',
-    'port'     => 3306,
+    // start.bat sets SCPLS_DB_PORT to the port the running XAMPP MySQL uses.
+    'port'     => (int) (getenv('SCPLS_DB_PORT') ?: 3306),
     'dbname'   => 'scpls_v2',
     'username' => 'root',
     'password' => '',

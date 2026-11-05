@@ -34,16 +34,44 @@ echo.
 pause
 exit /b 1
 
-rem ---------- MySQL client (PATH first, then the normal XAMPP folder) ----------
+rem ---------- MySQL client + port ----------
+rem  1. Ask Windows which MySQL/MariaDB server is RUNNING (XAMPP preferred)
+rem     and on which port - XAMPP may sit on 3307 if 3306 was taken.
+rem  2. Use the client next to that server; else XAMPP on C:/D:/E:; else PATH.
+rem  A "mysql" on PATH may be a .cmd wrapper, so it is CALLed (running a .cmd
+rem  without CALL ends this script = the window just closes).
 :check_mysql
 set MYSQL=
 set MYSQLDUMP=
+set SRVCLIENT=
+set DBPORT=
+for /f "usebackq tokens=1,2 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0database\find-mysql.ps1" 2^>nul`) do (
+    set "SRVCLIENT=%%A"
+    set "DBPORT=%%B"
+)
+if not defined DBPORT set DBPORT=3306
+if "%SRVCLIENT%"=="none" set SRVCLIENT=
+if defined SRVCLIENT if not exist "%SRVCLIENT%" set SRVCLIENT=
+if not defined SRVCLIENT goto client_fallback
+for %%F in ("%SRVCLIENT%") do set "SRVDIR=%%~dpF"
+set MYSQL="%SRVCLIENT%" -P%DBPORT%
+if exist "%SRVDIR%mysqldump.exe" set MYSQLDUMP="%SRVDIR%mysqldump.exe" -P%DBPORT%
+goto mysql_found
+
+:client_fallback
+for %%D in (C D E) do if not defined MYSQL if exist "%%D:\xampp\mysql\bin\mysql.exe" (
+    set MYSQL="%%D:\xampp\mysql\bin\mysql.exe" -P%DBPORT%
+    set MYSQLDUMP="%%D:\xampp\mysql\bin\mysqldump.exe" -P%DBPORT%
+)
+if defined MYSQL goto mysql_found
 where mysql >nul 2>nul
-if not errorlevel 1 set MYSQL=mysql
-if not errorlevel 1 set MYSQLDUMP=mysqldump
-if not defined MYSQL if exist "C:\xampp\mysql\bin\mysql.exe" set MYSQL="C:\xampp\mysql\bin\mysql.exe"
-if not defined MYSQLDUMP if exist "C:\xampp\mysql\bin\mysqldump.exe" set MYSQLDUMP="C:\xampp\mysql\bin\mysqldump.exe"
+if not errorlevel 1 set MYSQL=call mysql -P%DBPORT%
+if not errorlevel 1 set MYSQLDUMP=call mysqldump -P%DBPORT%
+
+:mysql_found
 if not defined MYSQL goto no_mysql
+rem  The PHP app reads this so it talks to the same port.
+set SCPLS_DB_PORT=%DBPORT%
 goto check_mysql_up
 
 :no_mysql
@@ -59,17 +87,34 @@ exit /b 1
 
 rem ---------- MySQL must be running (checked on EVERY start) ----------
 :check_mysql_up
-%MYSQL% -h127.0.0.1 -uroot -e "SELECT 1" >nul 2>nul
+if exist "%LOG%" del "%LOG%" >nul 2>nul
+%MYSQL% -h127.0.0.1 -uroot -e "SELECT 1" >nul 2>"%LOG%"
 if errorlevel 1 goto mysql_down
 goto check_running
 
 :mysql_down
 echo.
-echo  [ERROR] MySQL is not running.
+findstr /c:"1045" "%LOG%" >nul 2>nul
+if not errorlevel 1 goto mysql_password
+echo  [ERROR] Could not connect to MySQL on port %DBPORT%.
+echo  ---- MySQL said: ----
+if exist "%LOG%" type "%LOG%"
+echo  ---------------------
 echo  1. Open XAMPP Control Panel
 echo  2. Press Start on MySQL (Apache is not needed)
 echo  3. Wait until MySQL turns green, then double-click this file again
 echo  If it still fails, take a photo of this window and send it to Mat.
+echo.
+pause
+exit /b 1
+
+:mysql_password
+echo  [ERROR] MySQL is running on port %DBPORT%, but it refused user "root"
+echo  with no password (someone set a root password).
+echo  ---- MySQL said: ----
+type "%LOG%"
+echo  ---------------------
+echo  Take a photo of this window and send it to Mat.
 echo.
 pause
 exit /b 1
@@ -162,6 +207,7 @@ echo  Loading starter data (users, students, schedule)...
 if errorlevel 1 goto db_fail
 
 :db_done
+if not exist "storage" mkdir "storage"
 echo DONE > "storage\.first-run-done"
 goto start_server
 
