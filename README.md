@@ -8,6 +8,14 @@
 >
 > (Older web demo: https://scpls.xo.je — 2026-10-14 build. The school now runs it locally.)
 
+## November 2026 — separate QR Scanner (2026-11-05)
+
+- **Scanning is separate from the dashboard.** Open the **QR Scanner** at http://127.0.0.1:8000/scan/ (also a button on the login page and in the teacher menu). No login needed: big camera, full-screen button, large PRESENT / LATE + name after each scan.
+- **How it knows the class:** the teacher clicks **Start** on their dashboard first. The student's QR gives their section; the system logs the scan to that section's class running right now (from 15 min before start to the end). If no class is running it says so — nothing is recorded.
+- **A class left open by mistake** no longer catches the next class's scans. (A class opened off-schedule on purpose — make-up class or demo — still accepts scans, marked LATE.)
+- **Teacher attendance page** no longer has a camera: it shows the student list, which updates by itself every few seconds as students scan.
+- **Faster:** parent emails are sent in the background, so "Present" appears right away. The QR scanner library is bundled, so it works without internet.
+
 ## October 2026 revisions (sir Vic, round 3 — 2026-10-22)
 
 - **Teacher Schedule is a calendar** — the old day-by-day tables are now a weekly class program (Mon–Fri, Saturday when used; 7 AM–5 PM grid). Pick a teacher to see only their week; click any class to edit or delete it. Prints on one landscape page.

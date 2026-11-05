@@ -49,8 +49,8 @@ try {
 
     // 2. Resolve the ACTIVE attendance session for the student's section.
     //    A section can have several active sessions in one day (morning + afternoon
-    //    classes), so prefer the session whose scheduled window contains the scan
-    //    time; fall back to the most recently started session.
+    //    classes), so use the session whose scheduled window contains the scan
+    //    time (see the off-schedule fallback below).
     $scanTime = $debugTime ?: date('H:i:s');
     $graceMin = (int)config('attendance.on_time_window', 15);
 
@@ -83,11 +83,23 @@ try {
         }
     }
     if (!$session) {
-        $session = $sessions[0] ?? null;
+        // Nothing in its time window. Only fall back to a class the teacher opened
+        // OFF its schedule (make-up class / demo). A class that was started on
+        // schedule and is now past its end was most likely left open by mistake,
+        // so today's later scans must never be logged into it.
+        foreach ($sessions as $s) {
+            $startedTS = strtotime(date('H:i:s', strtotime((string) $s['started_at'])));
+            $winStart  = strtotime($s['start_time']) - $graceMin * 60;
+            $winEnd    = strtotime($s['end_time']);
+            if ($startedTS < $winStart || $startedTS > $winEnd) {
+                $session = $s;
+                break;
+            }
+        }
     }
 
     if (!$session) {
-        echo json_encode(['success' => false, 'message' => 'No active attendance session for your section right now.']);
+        echo json_encode(['success' => false, 'message' => 'No class is running for your section right now. Ask your teacher to start attendance.']);
         exit;
     }
 

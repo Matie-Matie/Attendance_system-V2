@@ -1,13 +1,13 @@
 <?php
 /**
- * Student QR Scan Kiosk (public)
+ * QR Scanner Kiosk (public, separate from every dashboard)
  *
- * Flow:
- *   1. Student shows their QR card -> webcam scans it
- *   2. QR decoded -> /api/scan.php verifies + logs attendance
- *   3. Result shown (success / already logged / no active session)
- *
- * Works standalone on a kiosk PC or on a phone. No login required.
+ * Open it on the classroom/kiosk PC (or a phone): /scan/ or /student/scan.php.
+ *   1. The teacher starts the class from their dashboard (creates the active session)
+ *   2. Students hold their QR card to this camera
+ *   3. /api/scan.php finds the student's section -> the class running right now
+ *      -> logs PRESENT / LATE into that teacher's session
+ * No login needed here: the student's QR + the current time decide the class.
  */
 require_once __DIR__ . '/../../bootstrap.php';
 ?>
@@ -16,198 +16,235 @@ require_once __DIR__ . '/../../bootstrap.php';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Scan | <?= config('name') ?></title>
+    <title>QR Scanner | <?= h(config('short_name')) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/style.css?v=20261014">
-    <link rel="stylesheet" href="/assets/css/scan.css">
     <style>
-        #qr-reader { width: 100%; max-width: 420px; margin: 0 auto; }
-        #qr-reader img, #qr-reader video { max-width: 100%; border-radius: var(--radius-sm); }
-        #qr-reader__scan_region { border-radius: var(--radius-sm); overflow: hidden; }
+        :root {
+            --k-bg: #120E0C;
+            --k-panel: #1E1916;
+            --k-line: rgba(255,255,255,0.10);
+            --k-text: #F6F1EC;
+            --k-muted: rgba(246,241,236,0.62);
+            --k-brand: #C00000;
+            --k-ok: #4B7E2E;
+            --k-ok-soft: #E7F1E0;
+            --k-late: #B87410;
+            --k-late-soft: #FBF0DC;
+            --k-bad: #C33030;
+            --k-bad-soft: #FBE6E6;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body {
+            background: var(--k-bg); color: var(--k-text);
+            font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+
+        /* ---------- Top bar ---------- */
+        .k-top {
+            display: flex; align-items: center; gap: 1rem;
+            padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--k-line);
+            background: linear-gradient(90deg, rgba(192,0,0,0.22), transparent 60%);
+        }
+        .k-logo { width: 44px; height: 44px; border-radius: 12px; background: #fff; padding: 3px; flex: none; }
+        .k-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 9px; }
+        .k-title { min-width: 0; }
+        .k-title h1 { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.01em; }
+        .k-title p { font-size: 0.82rem; color: var(--k-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .k-clock { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
+        .k-clock strong { display: block; font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+        .k-clock span { font-size: 0.8rem; color: var(--k-muted); }
+        .k-fs {
+            flex: none; cursor: pointer; border: 1px solid var(--k-line); background: var(--k-panel);
+            color: var(--k-text); border-radius: 999px; padding: 0.6rem 1rem; font: inherit; font-weight: 700; font-size: 0.85rem;
+            display: inline-flex; align-items: center; gap: 0.45rem;
+        }
+        .k-fs:hover { border-color: rgba(255,255,255,0.3); }
+
+        /* ---------- Camera ---------- */
+        .k-main { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; gap: 0.9rem; }
+        .k-cam {
+            width: min(94vw, calc((100vh - 13rem) * 4 / 3));
+            border-radius: 20px; overflow: hidden; background: #000;
+            border: 1px solid var(--k-line); box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+        }
+        #qr-reader { width: 100% !important; border: 0 !important; color: var(--k-text); }
+        #qr-reader video { width: 100% !important; display: block; max-height: calc(100vh - 13rem); object-fit: contain; }
+        #qr-reader__dashboard { padding: 0.75rem !important; }
+        #qr-reader__dashboard_section_csr button,
+        #qr-reader button {
+            padding: 0.7rem 1.2rem; border-radius: 999px; border: 0; background: var(--k-brand); color: #fff;
+            font: inherit; font-weight: 700; cursor: pointer; margin: 0.25rem;
+        }
+        #qr-reader select { padding: 0.45rem; border-radius: 8px; font: inherit; }
+        #qr-reader a, #qr-reader span { color: var(--k-text) !important; }
+        #qr-reader img[alt="Info icon"] { display: none; }
+        /* Kiosk: students must not be able to stop the camera or switch to file upload */
+        #html5-qrcode-button-camera-stop, #html5-qrcode-anchor-scan-type-change { display: none !important; }
+        .k-hint { font-size: clamp(1.1rem, 2.2vw, 1.6rem); font-weight: 700; text-align: center; }
+        .k-hint small { display: block; font-size: 0.6em; font-weight: 500; color: var(--k-muted); margin-top: 0.2rem; }
+
+        /* ---------- Result card ---------- */
+        .k-result {
+            position: fixed; inset: 0; z-index: 50; display: none;
+            align-items: center; justify-content: center; padding: 1.5rem;
+            background: rgba(10,8,7,0.55); backdrop-filter: blur(3px);
+        }
+        .k-result.show { display: flex; }
+        .k-card {
+            width: min(92vw, 620px); text-align: center; border-radius: 26px; padding: 2.4rem 2rem 2rem;
+            background: #fff; color: #1B1613; border-top: 12px solid var(--k-ok);
+            box-shadow: 0 30px 90px rgba(0,0,0,0.5); animation: pop 0.22s ease-out;
+        }
+        @keyframes pop { from { transform: scale(0.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .k-icon { width: 84px; height: 84px; margin: 0 auto 0.9rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .k-status { font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 800; line-height: 1; letter-spacing: 0.02em; }
+        .k-name { font-size: clamp(1.5rem, 3.6vw, 2.2rem); font-weight: 800; margin-top: 0.6rem; }
+        .k-meta { font-size: 1.05rem; color: #6B615A; margin-top: 0.5rem; }
+        .k-card.ok   { border-top-color: var(--k-ok); }   .k-card.ok   .k-icon { background: var(--k-ok-soft); color: var(--k-ok); }     .k-card.ok   .k-status { color: var(--k-ok); }
+        .k-card.late { border-top-color: var(--k-late); } .k-card.late .k-icon { background: var(--k-late-soft); color: var(--k-late); } .k-card.late .k-status { color: var(--k-late); }
+        .k-card.bad  { border-top-color: var(--k-bad); }  .k-card.bad  .k-icon { background: var(--k-bad-soft); color: var(--k-bad); }   .k-card.bad  .k-status { color: var(--k-bad); font-size: clamp(2rem, 5vw, 2.8rem); }
+        .k-card.bad .k-name { font-size: clamp(1.15rem, 2.6vw, 1.5rem); font-weight: 600; }
+
+        .k-busy { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); z-index: 40; display: none;
+                  background: var(--k-panel); border: 1px solid var(--k-line); border-radius: 999px; padding: 0.6rem 1.1rem; font-weight: 700; }
+        .k-busy.show { display: block; }
+
+        @media (max-width: 640px) {
+            .k-top { padding: 0.7rem 0.9rem; gap: 0.7rem; }
+            .k-title p, .k-clock span, .k-fs span { display: none; }
+            .k-clock strong { font-size: 1.25rem; }
+            .k-cam { width: 100%; }
+        }
     </style>
 </head>
-<body class="scan-page">
-    <div class="scan-container">
-        <div class="scan-header">
-            <div class="scan-logo"><img src="/assets/images/logo.jpg" alt="<?= config('short_name') ?> logo"></div>
-            <h1>QR Attendance Scan</h1>
-            <p><?= config('school_name') ?> | S.Y. <?= config('academic_year') ?></p>
+<body>
+    <header class="k-top">
+        <div class="k-logo"><img src="/assets/images/logo.jpg" alt="<?= h(config('short_name')) ?> logo"></div>
+        <div class="k-title">
+            <h1>QR Attendance Scanner</h1>
+            <p><?= h(config('school_name')) ?> &middot; S.Y. <?= h(config('academic_year')) ?></p>
         </div>
+        <div class="k-clock"><strong id="k-time">--:--</strong><span id="k-date"></span></div>
+        <button type="button" class="k-fs" id="k-fs" onclick="toggleFullscreen()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>
+            <span id="k-fs-label">Full screen</span>
+        </button>
+    </header>
 
-        <div class="scan-steps">
-            <div class="step active" id="step1-indicator">
-                <span class="step-num">1</span>
-                <span class="step-label">Scan QR</span>
-            </div>
-            <div class="step-connector"></div>
-            <div class="step" id="step2-indicator">
-                <span class="step-num">2</span>
-                <span class="step-label">Done</span>
-            </div>
-        </div>
+    <main class="k-main">
+        <div class="k-cam"><div id="qr-reader"></div></div>
+        <p class="k-hint">Hold your QR card in front of the camera
+            <small>Your attendance is logged to the class that is running right now.</small></p>
+    </main>
 
-        <!-- Phase 1: QR Scanner -->
-        <div id="phase-qr" class="scan-phase active">
-            <div class="scan-card">
-                <h2>Hold your QR card to the camera</h2>
-                <p class="text-muted">Your attendance will be logged automatically.</p>
-                <div id="qr-reader" class="qr-reader-container"></div>
-                <div id="qr-result" class="qr-result" style="display:none;">
-                    <div class="qr-spinner"></div>
-                    <p>QR detected! Logging attendance...</p>
-                </div>
-                <div id="qr-error" class="alert alert-danger" style="display:none;margin-top:0.75rem;"></div>
-            </div>
-        </div>
+    <div class="k-busy" id="k-busy">Checking&hellip;</div>
 
-        <!-- Phase 2: Result (auto-clears back to scanning — the record lives in the class session) -->
-        <div id="phase-result" class="scan-phase">
-            <div class="scan-card result-card">
-                <div id="result-icon" class="result-icon result-success"></div>
-                <h2 id="result-title">Attendance Logged!</h2>
-                <p id="result-message"></p>
-                <div id="result-details" class="result-details"></div>
-                <p class="text-muted text-sm" id="result-autoreset">Scanning next student in <strong id="reset-count">3</strong>…</p>
-                <button onclick="resetScan()" class="btn btn-primary">Scan Now</button>
-                <a href="/" class="btn btn-outline">Home</a>
-            </div>
+    <div class="k-result" id="k-result" role="alert" aria-live="assertive">
+        <div class="k-card" id="k-card">
+            <div class="k-icon" id="k-icon"></div>
+            <div class="k-status" id="k-status"></div>
+            <div class="k-name" id="k-name"></div>
+            <div class="k-meta" id="k-meta"></div>
         </div>
     </div>
 
     <script src="/assets/vendor/html5-qrcode-2.3.8.min.js"></script>
     <script>
-    const STATE = { scanning: false };
-    let html5QrCode = null;
+    const ICON_OK  = '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+    const ICON_BAD = '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    const ICON_WARN = '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="7" x2="12" y2="13"/><circle cx="12" cy="17.5" r="0.6" fill="currentColor"/></svg>';
 
-    function showPhase(phaseId) {
-        document.querySelectorAll('.scan-phase').forEach(p => p.classList.remove('active'));
-        document.getElementById(phaseId).classList.add('active');
+    let scanner = null;
+    let busy = false;            // a scan is being checked / its result is on screen
+    let lastCode = '', lastAt = 0; // ignore the same card held in front of the camera
+    let hideTimer = null;
+
+    function qrbox(w, h) {
+        const s = Math.max(200, Math.floor(Math.min(w, h) * 0.6));
+        return { width: s, height: s };
     }
 
-    function setStep(step) {
-        for (let i = 1; i <= 2; i++) {
-            const el = document.getElementById('step' + i + '-indicator');
-            el.classList.toggle('active', i <= step);
-            el.classList.toggle('done', i < step);
-        }
+    function startScanner() {
+        scanner = new Html5QrcodeScanner('qr-reader', { fps: 10, qrbox, rememberLastUsedCamera: true }, false);
+        scanner.render(onScan, () => {});
     }
 
-    function startQrScanner() {
-        showPhase('phase-qr');
-        setStep(1);
-        document.getElementById('qr-error').style.display = 'none';
-        document.getElementById('qr-result').style.display = 'none';
-
-        html5QrCode = new Html5QrcodeScanner(
-            'qr-reader',
-            {
-                fps: 10,
-                qrbox: { width: 250, height: 250 },
-                rememberLastUsedCamera: true,
-            },
-            false
-        );
-        html5QrCode.render(onQrSuccess, onQrError);
+    async function restartScanner() {
+        // The scanner measures its size when it starts; clear() is async, so wait for it.
+        if (!scanner) return startScanner();
+        try { await scanner.clear(); } catch (e) {}
+        startScanner();
     }
 
-    function onQrSuccess(decodedText) {
-        if (STATE.scanning) return;
-        STATE.scanning = true;
+    function onScan(text) {
+        const code = String(text || '').trim();
+        const now = Date.now();
+        if (busy || !code) return;
+        if (code === lastCode && now - lastAt < 5000) return;
+        lastCode = code; lastAt = now;
+        busy = true;
+        document.getElementById('k-busy').classList.add('show');
 
-        try { html5QrCode.clear(); } catch (e) {}
-
-        document.getElementById('qr-result').style.display = 'block';
-
-        const formData = new FormData();
-        formData.append('student_id', decodedText.trim());
-
-        fetch('/api/scan.php', { method: 'POST', body: formData })
+        const fd = new FormData();
+        fd.append('student_id', code);
+        fetch('/api/scan.php', { method: 'POST', body: fd })
             .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showResult('success', 'Attendance Logged!', data.message, {
-                        'Student': data.student_name,
-                        'Status': data.status.toUpperCase(),
-                        'Time': data.time,
-                        'Subject': data.subject,
-                        'Logged to': data.subject + ' · ' + data.section
-                    });
-                } else if (data.already_logged) {
-                    showResult('error', 'Already Logged', data.message, null);
+            .then(d => {
+                if (d.success) {
+                    const late = String(d.status).toLowerCase() === 'late';
+                    show(late ? 'late' : 'ok', ICON_OK, String(d.status || 'present').toUpperCase(),
+                         d.student_name || '', [d.subject, d.section, d.time].filter(Boolean).join(' · '), 2500);
+                } else if (d.already_logged) {
+                    show('late', ICON_WARN, 'Already logged', d.message || '', '', 2500);
                 } else {
-                    document.getElementById('qr-result').style.display = 'none';
-                    const errEl = document.getElementById('qr-error');
-                    errEl.textContent = data.message;
-                    errEl.style.display = 'block';
-                    STATE.scanning = false;
-                    try { html5QrCode.render(onQrSuccess, onQrError); } catch (e) {}
+                    show('bad', ICON_BAD, 'Not recorded', d.message || 'Please try again.', '', 3500);
                 }
             })
-            .catch(err => {
-                document.getElementById('qr-result').style.display = 'none';
-                document.getElementById('qr-error').textContent = 'Scan error: ' + err;
-                document.getElementById('qr-error').style.display = 'block';
-                STATE.scanning = false;
-                try { html5QrCode.render(onQrSuccess, onQrError); } catch (e) {}
-            });
+            .catch(() => show('bad', ICON_BAD, 'Not recorded', 'Could not reach the system. Please try again.', '', 3500));
     }
 
-    function onQrError(err) {
-        if (err && !String(err).includes('No MultiFormat Readers')) {
-            console.warn('QR scan warning:', err);
+    function show(kind, icon, status, name, meta, ms) {
+        document.getElementById('k-busy').classList.remove('show');
+        document.getElementById('k-card').className = 'k-card ' + kind;
+        document.getElementById('k-icon').innerHTML = icon;
+        document.getElementById('k-status').textContent = status;
+        document.getElementById('k-name').textContent = name;
+        document.getElementById('k-meta').textContent = meta;
+        document.getElementById('k-result').classList.add('show');
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+            document.getElementById('k-result').classList.remove('show');
+            busy = false; // camera never stopped - ready for the next student
+        }, ms);
+    }
+
+    function tick() {
+        const d = new Date();
+        document.getElementById('k-time').textContent = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        document.getElementById('k-date').textContent = d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+
+    function toggleFullscreen() {
+        if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); }
+        else if (document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen().catch(() => {}); }
+    }
+    document.addEventListener('fullscreenchange', () => {
+        document.getElementById('k-fs-label').textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
+        if (!busy) setTimeout(restartScanner, 200); // camera area changed size
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        tick(); setInterval(tick, 1000);
+        if (typeof Html5QrcodeScanner === 'undefined') {
+            show('bad', ICON_BAD, 'Scanner not loaded', 'Reload the page. If it keeps happening, tell your teacher.', '', 600000);
+            return;
         }
-    }
-
-    let resetTimer = null;
-
-    function showResult(type, title, message, details) {
-        showPhase('phase-result');
-        setStep(2);
-
-        const icon = document.getElementById('result-icon');
-        icon.className = 'result-icon ' + (type === 'success' ? 'result-success' : 'result-error');
-        icon.innerHTML = type === 'success'
-            ? '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>'
-            : '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
-        document.getElementById('result-title').textContent = title;
-        document.getElementById('result-message').textContent = message;
-
-        const detailsEl = document.getElementById('result-details');
-        if (details) {
-            let html = '<table class="result-table">';
-            for (const [key, val] of Object.entries(details)) {
-                html += '<tr><td>' + key + '</td><td>' + val + '</td></tr>';
-            }
-            html += '</table>';
-            detailsEl.innerHTML = html;
-            detailsEl.style.display = 'block';
-        } else {
-            detailsEl.style.display = 'none';
-        }
-
-        // Kiosk flow: the result clears itself so the next student can tap.
-        // The record itself lives in the teacher's class session, not here.
-        if (resetTimer) clearInterval(resetTimer);
-        let left = 3;
-        document.getElementById('reset-count').textContent = left;
-        resetTimer = setInterval(function () {
-            left--;
-            if (left <= 0) { clearInterval(resetTimer); resetScan(); return; }
-            document.getElementById('reset-count').textContent = left;
-        }, 1000);
-    }
-
-    function resetScan() {
-        if (resetTimer) clearInterval(resetTimer);
-        STATE.scanning = false;
-        document.getElementById('qr-result').style.display = 'none';
-        document.getElementById('qr-error').style.display = 'none';
-        startQrScanner();
-    }
-
-    document.addEventListener('DOMContentLoaded', startQrScanner);
+        startScanner();
+    });
     </script>
     <script src="/assets/js/zoom-lock.js?v=20261021" defer></script>
 </body>

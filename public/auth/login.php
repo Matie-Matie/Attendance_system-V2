@@ -125,6 +125,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="submit" class="btn btn-primary btn-lg">Sign In →</button>
                 </form>
 
+                <a href="/scan/" class="btn btn-outline btn-lg" style="width:100%;margin-top:0.75rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+                    Open QR Scanner (students)
+                </a>
+
                 <div class="login-meta" style="justify-content:center;">
                     <span><?= config('name') ?></span>
                 </div>

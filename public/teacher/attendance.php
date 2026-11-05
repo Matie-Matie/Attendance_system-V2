@@ -206,9 +206,6 @@ ob_start();
 <style>
     .attendance-station { max-width: 900px; margin: 0 auto; }
     .scanner-section { max-width: 480px; margin: 0 auto 1.5rem; }
-    #qr-reader { width: 100%; }
-    #qr-reader img, #qr-reader video { max-width: 100%; border-radius: var(--radius-sm); }
-    #qr-reader__scan_region { border-radius: var(--radius-sm); overflow: hidden; }
     .student-list { max-height: 400px; overflow-y: auto; }
     .student-item {
         display: flex;
@@ -257,49 +254,21 @@ ob_start();
         font-family: monospace;
     }
 
-    /* ---------- Scan mode: camera fills the whole screen ---------- */
-    .scan-mode-btn { display: flex; align-items: center; gap: 0.5rem; margin: -0.5rem auto 0.75rem; }
-    .sm-only { display: none !important; }
-    body.scan-mode .sm-only { display: inline-flex !important; }
-    body.scan-mode { overflow: hidden; }
-    /* The page-entry animation leaves a transform on this wrapper, which would
-       trap the fixed full-screen camera inside the content area. */
-    body.scan-mode .attendance-station { transform: none !important; animation: none !important; }
-    body.scan-mode .camera-shell {
-        position: fixed; inset: 0; z-index: 1000;
-        max-width: none !important; margin: 0 !important;
-        border-radius: 0; border: 0;
-        display: flex; align-items: center; justify-content: center;
+    /* ---------- Scanning happens on the separate QR Scanner page ---------- */
+    .scanner-callout {
+        display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+        padding: 1.1rem 1.25rem; margin-bottom: 1.25rem;
+        border-radius: var(--radius-lg); background: #120E0C; color: #F6F1EC;
     }
-    body.scan-mode .camera-shell #qr-reader {
-        width: min(100vw, calc((100vh - 9rem) * 4 / 3)) !important;
-        padding: 4.5rem 0 4.5rem; border: 0 !important;
-    }
-    body.scan-mode .camera-shell video { width: 100% !important; max-height: calc(100vh - 9rem); object-fit: contain; }
-    body.scan-mode .camera-topbar { font-size: 1rem; padding: 1rem 1.25rem; }
-    body.scan-mode .camera-bottombar { padding: 1rem 1.25rem; }
-    body.scan-mode .camera-bottombar > span:first-child { font-size: 1.15rem !important; }
-    .sm-counts { gap: 0.4rem; font-weight: 700; }
-    .sm-counts span { padding: 0.25rem 0.65rem; border-radius: 999px; background: rgba(255,255,255,0.16); }
-    .sm-exit {
-        position: absolute; top: 0.85rem; right: 1rem; z-index: 6;
-        pointer-events: auto; cursor: pointer;
-        padding: 0.55rem 1rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.35);
-        background: rgba(0,0,0,0.55); color: #fff; font-weight: 700; font-size: 0.9rem;
-    }
-    body.scan-mode .camera-topbar { padding-right: 11rem; }
-    body.scan-mode .attendance-success { z-index: 1100; padding: 2.5rem 4rem; min-width: min(90vw, 560px); }
-    body.scan-mode .attendance-success h2 { font-size: 3rem; line-height: 1.1; }
-    body.scan-mode .attendance-success p:first-of-type { font-size: 2rem; font-weight: 700; color: var(--text-primary); }
-    .scan-error-overlay {
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        z-index: 1100; min-width: min(90vw, 560px); max-width: 90vw;
-        padding: 2.5rem 3rem; border-radius: var(--radius-lg); text-align: center;
-        background: var(--bg-secondary); box-shadow: var(--shadow-lg);
-        border-top: 8px solid var(--danger); animation: fadeIn 0.3s ease-out;
-    }
-    .scan-error-overlay h2 { color: var(--danger); font-size: 2.5rem; margin-bottom: 0.5rem; }
-    .scan-error-overlay p { font-size: 1.4rem; color: var(--text-primary); }
+    .scanner-callout .sc-icon { width: 46px; height: 46px; border-radius: 12px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; flex: none; }
+    .scanner-callout .sc-text { flex: 1; min-width: 220px; }
+    .scanner-callout strong { display: block; font-size: 1.02rem; }
+    .scanner-callout span { font-size: 0.85rem; opacity: 0.75; }
+    .scanner-callout .btn { white-space: nowrap; }
+    .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4B7E2E; margin-right: 0.35rem; animation: livePulse 1.6s infinite; }
+    @keyframes livePulse { 50% { opacity: 0.25; } }
+    .student-item.just-scanned { animation: justScanned 2.4s ease-out; }
+    @keyframes justScanned { 0% { box-shadow: 0 0 0 3px var(--success); } 100% { box-shadow: 0 0 0 0 transparent; } }
 </style>
 
 <div class="attendance-station">
@@ -334,37 +303,23 @@ ob_start();
         </div>
 
         <?php if ($session['status'] === 'active'): ?>
-            <!-- QR Scanner — Architech Camera Shell -->
-            <div class="camera-shell" style="max-width: 540px; margin: 0 auto 1.5rem;">
-                <div class="camera-topbar">
-                    <span class="ct-live"><span class="blip"></span> Live</span>
-                    <span style="font-weight:700; letter-spacing:0.02em;"><?= h($session['subject_name']) ?> • <?= h($session['section_name']) ?></span>
-                    <span class="sm-only sm-counts" aria-live="polite">
-                        <span>Present <b id="sm-present">0</b></span>
-                        <span>Late <b id="sm-late">0</b></span>
-                        <span>Waiting <b id="sm-pending">0</b></span>
-                    </span>
+            <!-- Scanning is separate from the dashboard: students use the QR Scanner page -->
+            <div class="scanner-callout">
+                <div class="sc-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
                 </div>
-                <button type="button" class="sm-only sm-exit" onclick="exitScanMode()">&#10005; Exit scan mode</button>
-                <div id="qr-reader"></div>
-                <div class="camera-bottombar">
-                    <span style="font-size:0.78rem; opacity:0.9;">Align QR in frame • Auto-capture • <span id="scan-status-text" style="font-weight:700;">Waiting for QR…</span></span>
-                    <span class="badge badge-success" style="background: rgba(255,255,255,0.16); color:#fff; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.2);">● Ready</span>
+                <div class="sc-text">
+                    <strong>Students scan at the QR Scanner</strong>
+                    <span>Open it on the classroom PC or projector. Scans for this class appear in the list below by themselves.</span>
                 </div>
-                <!-- hidden status mirror for JS compatibility -->
-                <div id="scan-status" class="scan-status scanning" style="display:none;">Waiting for student QR...</div>
+                <a href="/scan/" target="scpls-scanner" rel="noopener" class="btn btn-primary">Open QR Scanner &#8599;</a>
             </div>
-            <button type="button" class="btn btn-primary scan-mode-btn" onclick="enterScanMode()">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>
-                Scan mode (full screen)
-            </button>
-            <p class="text-xs text-muted" style="text-align:center; margin: 0 0 1.25rem;">Have the student hold their QR card up to the camera. The system marks present/late automatically. Scan mode shows only the camera so students can see it from afar (Esc to exit).</p>
         <?php endif; ?>
 
         <!-- Student List -->
         <div class="card">
             <div class="card-header">
-                <h3>Students</h3>
+                <h3>Students<?php if ($session['status'] === 'active'): ?> <span style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-left:0.4rem;"><span class="live-dot"></span>Live</span><?php endif; ?></h3>
                 <div class="flex items-center gap-2">
                     <span class="badge badge-success" id="present-count">
                         <?= count(array_filter($sectionStudents, fn($s) => $s['attendance_status'] === 'present')) ?>
@@ -407,205 +362,36 @@ ob_start();
     <?php endif; ?>
 </div>
 
-<script src="/assets/vendor/html5-qrcode-2.3.8.min.js"></script>
 <script>
-const SESSION_ID = <?= $sessionId ?>;
-const STUDENTS = <?= json_encode($sectionStudents) ?>;
-const DEBUG_TIME = '<?= $debugTime ?>'; // empty string = real time
-let html5QrCode = null;
-let isScanning = true;
+const SESSION_ID = <?= (int) $sessionId ?>;
 
-// Mirror hidden scan-status → visible camera bottombar text (architech)
-document.addEventListener('DOMContentLoaded', function() {
-    const hidden = document.getElementById('scan-status');
-    const visible = document.getElementById('scan-status-text');
-    if (!hidden || !visible) return;
-    const sync = () => { visible.textContent = hidden.textContent; };
-    sync();
-    new MutationObserver(sync).observe(hidden, { childList: true, characterData: true, subtree: true });
-    // also watch class changes to swap badge color
-    const badge = document.querySelector('.camera-bottombar .badge');
-    if (badge) {
-        new MutationObserver(() => {
-            const cls = hidden.className;
-            if (cls.includes('error')) { badge.textContent = '● Error'; badge.style.background = 'rgba(220,74,74,0.85)'; showScanError(hidden.textContent); }
-            else if (cls.includes('success')) { badge.textContent = '● Success'; badge.style.background = 'rgba(75,126,46,0.85)'; }
-            else { badge.textContent = '● Ready'; badge.style.background = 'rgba(255,255,255,0.16)'; }
-        }).observe(hidden, { attributes: true, attributeFilter: ['class'] });
-    }
-});
+// ---------- Live list: scans arrive from the separate QR Scanner page ----------
+function setCount(id, n) { const el = document.getElementById(id); if (el) el.textContent = n; }
 
-function startQrScanner() {
-    const statusEl = document.getElementById('scan-status');
-
-    html5QrCode = new Html5QrcodeScanner(
-        'qr-reader',
-        {
-            fps: 10,
-            qrbox: (w, h) => { const s = Math.max(200, Math.floor(Math.min(w, h) * 0.6)); return { width: s, height: s }; },
-            rememberLastUsedCamera: true,
-        },
-        false
-    );
-
-    html5QrCode.render(async function(decodedText) {
-        if (!isScanning) return;
-        isScanning = false;
-        try { html5QrCode.clear(); } catch (e) {}
-
-        statusEl.textContent = 'QR detected! Verifying student...';
-        statusEl.className = 'scan-status scanning';
-
-        const formData = new FormData();
-        formData.append('student_id', decodedText.trim());
-        if (DEBUG_TIME) formData.append('debug_time', DEBUG_TIME);
-
-        try {
-            const resp = await fetch('/api/scan.php', { method: 'POST', body: formData });
-            const result = await resp.json();
-
-            // 🛡️ RACE CONDITION GUARD: another scan may have marked this
-            // student while we were awaiting the AJAX call.
-            if (!result.success && !result.already_logged) {
-                statusEl.textContent = result.message;
-                statusEl.className = 'scan-status error';
-                isScanning = true;
-                restartScanner();
-                return;
-            }
-
-            const student = STUDENTS.find(s => s.student_id === decodedText.trim());
-            if (student) {
-                const alreadyHandled = student.attendance_status === 'present' || student.attendance_status === 'late';
-                student.attendance_status = result.status || student.attendance_status;
-
-                // Update the UI (only if not already marked on screen)
-                if (!alreadyHandled) {
-                    const row = document.getElementById('student-row-' + student.id);
-                    if (row) {
-                        row.className = 'student-item ' + student.attendance_status;
-                        const badge = row.querySelector('.badge');
-                        if (badge) {
-                            badge.className = 'badge ' + (student.attendance_status === 'present' ? 'badge-success' : 'badge-warning');
-                            badge.textContent = student.attendance_status.toUpperCase();
-                        }
-                    }
-                    document.getElementById('present-count').textContent =
-                        parseInt(document.getElementById('present-count').textContent) + (student.attendance_status === 'present' ? 1 : 0);
-                    document.getElementById('late-count').textContent =
-                        parseInt(document.getElementById('late-count').textContent) + (student.attendance_status === 'late' ? 1 : 0);
-                    document.getElementById('pending-count').textContent =
-                        Math.max(0, parseInt(document.getElementById('pending-count').textContent) - 1);
-                }
-
-                if (result.success) {
-                    showSuccess(student.first_name + ' ' + student.last_name, student.attendance_status);
-                } else {
-                    statusEl.textContent = result.message;
-                    statusEl.className = 'scan-status error';
-                }
-            }
-
-            // Re-enable scanning after delay
-            setTimeout(() => {
-                isScanning = true;
-                statusEl.textContent = 'Waiting for student QR...';
-                statusEl.className = 'scan-status scanning';
-                restartScanner();
-            }, 2000);
-        } catch (err) {
-            statusEl.textContent = 'Scan error: ' + err.message;
-            statusEl.className = 'scan-status error';
-            isScanning = true;
-            setTimeout(() => { restartScanner(); }, 2000);
-        }
-    }, function(err) {
-        if (err && !String(err).includes('No MultiFormat Readers')) {
-            console.warn('QR scan warning:', err);
-        }
-    });
-}
-
-function restartScanner() {
+async function refreshLive() {
     try {
-        if (html5QrCode) html5QrCode.clear();
-    } catch (e) {}
-    startQrScanner();
-}
-
-function showSuccess(name, status) {
-    const overlay = document.createElement('div');
-    overlay.className = 'attendance-success';
-    overlay.id = 'success-overlay';
-    overlay.innerHTML = `
-        <div style="width:64px;height:64px;margin:0 auto 1rem;background:var(--success-light);border-radius:50%;display:flex;align-items:center;justify-content:center;">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4B7E2E" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
-        </div>
-        <h2>${status.toUpperCase()}</h2>
-        <p style="color:var(--text-secondary);">${name}</p>
-        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;">Time: ${new Date().toLocaleTimeString()}</p>
-    `;
-    document.body.appendChild(overlay);
-    setTimeout(() => {
-        const el = document.getElementById('success-overlay');
-        if (el) el.remove();
-    }, 2000);
-}
-
-// ---------- Scan mode ----------
-function inScanMode() { return document.body.classList.contains('scan-mode'); }
-
-function restartIfIdle() {
-    // The scanner measures its box size when it starts, so restart it after the
-    // camera area changes size (skipped while a scan is being processed).
-    if (!isScanning || !html5QrCode) return;
-    setTimeout(async () => {
-        try { await html5QrCode.clear(); } catch (e) {} // clear() is async - wait for it
-        startQrScanner();
-    }, 150);
-}
-
-function enterScanMode() {
-    if (inScanMode()) return;
-    document.body.classList.add('scan-mode');
-    syncScanCounts();
-    const el = document.documentElement;
-    if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); // hides the browser bars too
-    restartIfIdle();
-}
-
-function exitScanMode() {
-    if (!inScanMode()) return;
-    document.body.classList.remove('scan-mode');
-    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
-    restartIfIdle();
-}
-
-// Esc leaves browser full screen first; follow it out of scan mode too.
-document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) exitScanMode(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') exitScanMode(); });
-
-function syncScanCounts() {
-    [['present', 'sm-present'], ['late', 'sm-late'], ['pending', 'sm-pending']].forEach(([k, id]) => {
-        const src = document.getElementById(k + '-count'), dst = document.getElementById(id);
-        if (src && dst) dst.textContent = src.textContent.trim();
-    });
-}
-setInterval(syncScanCounts, 1000);
-
-function showScanError(message) {
-    if (!inScanMode()) return;
-    const old = document.getElementById('scan-error-overlay');
-    if (old) old.remove();
-    const box = document.createElement('div');
-    box.className = 'scan-error-overlay';
-    box.id = 'scan-error-overlay';
-    box.setAttribute('role', 'alert');
-    const h = document.createElement('h2'); h.textContent = 'Not recorded';
-    const p = document.createElement('p'); p.textContent = message || 'Please try again.';
-    box.append(h, p);
-    document.body.appendChild(box);
-    setTimeout(() => { if (box.isConnected) box.remove(); }, 2500);
+        const r = await fetch('/api/session-status.php?session_id=' + SESSION_ID, { cache: 'no-store' });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!d.success) return;
+        if (d.session_status !== 'active') { location.reload(); return; } // ended elsewhere
+        let present = 0, late = 0, pending = 0;
+        for (const [id, status] of Object.entries(d.students)) {
+            const st = status || 'pending';
+            if (st === 'present') present++; else if (st === 'late') late++; else pending++;
+            const row = document.getElementById('student-row-' + id);
+            if (!row || row.dataset.status === st) continue;
+            const wasPending = !row.dataset.status || row.dataset.status === 'pending';
+            row.dataset.status = st;
+            row.className = 'student-item ' + st + (wasPending && st !== 'pending' ? ' just-scanned' : '');
+            const badge = row.querySelector('.badge');
+            if (badge) {
+                badge.className = 'badge ' + (st === 'present' ? 'badge-success' : st === 'late' ? 'badge-warning' : 'badge-pending');
+                badge.textContent = st === 'pending' ? '\u2014' : st.toUpperCase();
+            }
+        }
+        setCount('present-count', present); setCount('late-count', late); setCount('pending-count', pending);
+    } catch (e) { /* offline blip - try again next tick */ }
 }
 
 // Session timer
@@ -624,7 +410,11 @@ updateTimer();
 // Init
 document.addEventListener('DOMContentLoaded', function() {
     if ('<?= $session['status'] ?>' === 'active') {
-        startQrScanner();
+        document.querySelectorAll('.student-item').forEach(r => {
+            r.dataset.status = ['present', 'late'].find(c => r.classList.contains(c)) || 'pending';
+        });
+        refreshLive();
+        setInterval(refreshLive, 3000);
     }
 });
 </script>
