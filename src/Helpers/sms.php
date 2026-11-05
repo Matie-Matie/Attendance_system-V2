@@ -218,6 +218,8 @@ function notify_send_after_response(array $logIds): void
     register_shutdown_function(static function () use ($ids) {
         if (function_exists('fastcgi_finish_request')) {
             @fastcgi_finish_request();
+        } elseif (notify_spawn_sender($ids)) {
+            return; // a separate PHP process sends it - this request ends right away
         }
         foreach ($ids as $id) {
             try {
@@ -227,6 +229,37 @@ function notify_send_after_response(array $logIds): void
             }
         }
     });
+}
+
+/**
+ * PHP's built-in server (start.bat) has no fastcgi_finish_request(), so the
+ * scanner would sit waiting while Gmail is contacted. Hand the sending to a
+ * detached `php bin/send-mail.php <ids>` process instead. Returns false when
+ * that is not possible, and the caller falls back to sending in-process.
+ */
+function notify_spawn_sender(array $ids): bool
+{
+    if (PHP_SAPI !== 'cli-server' || !function_exists('popen')) {
+        return false;
+    }
+    $php    = PHP_BINARY;
+    $script = BASE_PATH . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'send-mail.php';
+    if ($php === '' || !is_file($php) || !is_file($script)) {
+        return false;
+    }
+    $args = implode(' ', array_map('intval', $ids));
+    if (DIRECTORY_SEPARATOR === '\\') {
+        // Windows: `start /B` returns at once and leaves the sender running.
+        $cmd = 'start "" /B "' . $php . '" "' . $script . '" ' . $args;
+    } else {
+        $cmd = escapeshellarg($php) . ' ' . escapeshellarg($script) . ' ' . $args . ' > /dev/null 2>&1 &';
+    }
+    $h = @popen($cmd, 'r');
+    if ($h === false) {
+        return false;
+    }
+    pclose($h);
+    return true;
 }
 
 /* -------------------------------------------------------------------------
