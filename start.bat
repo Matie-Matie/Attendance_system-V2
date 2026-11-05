@@ -13,6 +13,7 @@ title SCPLS v2 - Attendance System
 cd /d "%~dp0"
 set PORT=8000
 set "TMPF=%TEMP%\scpls_q.txt"
+set "LOG=%TEMP%\scpls_setup_log.txt"
 
 goto check_php
 
@@ -95,6 +96,7 @@ goto first_db
 echo.
 echo  First-time setup - preparing the database. Please wait...
 echo.
+if exist "%LOG%" del "%LOG%" >nul 2>nul
 set DBCNT=0
 %MYSQL% -h127.0.0.1 -uroot -N -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='scpls_v2'" > "%TMPF%" 2>nul
 set /p DBCNT=<"%TMPF%"
@@ -118,12 +120,29 @@ if not "%RECCNT%"=="0" goto has_data
 echo  The database was only partly created last time - rebuilding it cleanly...
 if not exist "storage\backups" mkdir "storage\backups"
 if defined MYSQLDUMP %MYSQLDUMP% -h127.0.0.1 -uroot --force scpls_v2 > "storage\backups\scpls_v2-before-rebuild-%RANDOM%.sql" 2>nul
-%MYSQL% -h127.0.0.1 -uroot -e "DROP DATABASE IF EXISTS scpls_v2" >nul 2>nul
+%MYSQL% -h127.0.0.1 -uroot -e "DROP DATABASE IF EXISTS scpls_v2" >nul 2>>"%LOG%"
+if not errorlevel 1 goto full_setup
+rem  XAMPP refuses the DROP ("Directory not empty", errno 41) when stray
+rem  files were left in its data\scpls_v2 folder. Only reached when there
+rem  are NO attendance records, so it is safe to clear that one folder.
+echo  Clearing leftover database files...
+set DATADIR=
+%MYSQL% -h127.0.0.1 -uroot -N -r -e "SELECT @@datadir" > "%TMPF%" 2>>"%LOG%"
+set /p DATADIR=<"%TMPF%"
+del "%TMPF%" >nul 2>nul
+if not defined DATADIR goto db_fail
+set "DATADIR=%DATADIR:/=\%"
+if not "%DATADIR:~-1%"=="\" set "DATADIR=%DATADIR%\"
+if exist "%DATADIR%scpls_v2\" rmdir /s /q "%DATADIR%scpls_v2" 2>>"%LOG%"
+%MYSQL% -h127.0.0.1 -uroot -e "DROP DATABASE IF EXISTS scpls_v2" >nul 2>>"%LOG%"
 if errorlevel 1 goto db_fail
 
 :full_setup
 echo  Creating database and tables...
-%MYSQL% -h127.0.0.1 -uroot < "database\schema.sql"
+rem  Clear any "ghost" tables MySQL still remembers from a broken earlier
+rem  setup (they cause "already exists" / "Tablespace exists" errors).
+%MYSQL% -h127.0.0.1 -uroot -e "CREATE DATABASE IF NOT EXISTS scpls_v2 DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci; SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS scpls_v2.audit_logs, scpls_v2.settings, scpls_v2.sms_logs, scpls_v2.attendance_records, scpls_v2.attendance_sessions, scpls_v2.schedule_entries, scpls_v2.students, scpls_v2.semesters, scpls_v2.school_years, scpls_v2.sections, scpls_v2.subjects, scpls_v2.teachers, scpls_v2.users, scpls_v2.roles" >nul 2>>"%LOG%"
+%MYSQL% -h127.0.0.1 -uroot < "database\schema.sql" 2>>"%LOG%"
 if errorlevel 1 goto db_fail
 goto do_seed
 
@@ -139,7 +158,7 @@ goto db_done
 
 :do_seed
 echo  Loading starter data (users, students, schedule)...
-%MYSQL% -h127.0.0.1 -uroot < "database\seed.sql"
+%MYSQL% -h127.0.0.1 -uroot < "database\seed.sql" 2>>"%LOG%"
 if errorlevel 1 goto db_fail
 
 :db_done
@@ -158,6 +177,9 @@ exit /b 1
 :db_fail
 echo.
 echo  [ERROR] Could not prepare the database.
+echo  ---- MySQL said: ----
+if exist "%LOG%" type "%LOG%"
+echo  ---------------------
 echo  1. Open XAMPP Control Panel
 echo  2. Press Start on MySQL (Apache is not needed)
 echo  3. Double-click this file again
