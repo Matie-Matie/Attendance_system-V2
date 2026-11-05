@@ -15,7 +15,8 @@ require_once __DIR__ . '/../../bootstrap.php';
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#120E0C">
     <title>QR Scanner | <?= h(config('short_name')) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,7 +47,7 @@ require_once __DIR__ . '/../../bootstrap.php';
         /* ---------- Top bar ---------- */
         .k-top {
             display: flex; align-items: center; gap: 1rem;
-            padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--k-line);
+            padding: 0.85rem 1.25rem; padding-top: max(0.85rem, env(safe-area-inset-top)); border-bottom: 1px solid var(--k-line);
             background: linear-gradient(90deg, rgba(192,0,0,0.22), transparent 60%);
         }
         .k-logo { width: 44px; height: 44px; border-radius: 12px; background: #fff; padding: 3px; flex: none; }
@@ -55,7 +56,7 @@ require_once __DIR__ . '/../../bootstrap.php';
         .k-title h1 { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.01em; }
         .k-title p { font-size: 0.82rem; color: var(--k-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .k-clock { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
-        .k-clock strong { display: block; font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+        .k-clock strong { display: block; font-size: 1.6rem; font-weight: 800; line-height: 1.1; white-space: nowrap; }
         .k-clock span { font-size: 0.8rem; color: var(--k-muted); }
         .k-fs {
             flex: none; cursor: pointer; border: 1px solid var(--k-line); background: var(--k-panel);
@@ -73,7 +74,10 @@ require_once __DIR__ . '/../../bootstrap.php';
         }
         #qr-reader { width: 100% !important; border: 0 !important; color: var(--k-text); }
         #qr-reader video { width: 100% !important; display: block; max-height: calc(100vh - 13rem); object-fit: contain; }
-        #qr-reader__dashboard { padding: 0.75rem !important; }
+        #qr-reader__dashboard { padding: 0.25rem 0.75rem !important; }
+        /* While the camera runs, the library's control row is empty (Stop is hidden) - collapse it.
+           It comes back for the first-time "Request Camera Permissions" / camera choice. */
+        #qr-reader__dashboard:has(#html5-qrcode-button-camera-stop[style*="inline-block"]) { display: none; }
         #qr-reader__dashboard_section_csr button,
         #qr-reader button {
             padding: 0.7rem 1.2rem; border-radius: 999px; border: 0; background: var(--k-brand); color: #fff;
@@ -104,6 +108,8 @@ require_once __DIR__ . '/../../bootstrap.php';
         .k-status { font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 800; line-height: 1; letter-spacing: 0.02em; }
         .k-name { font-size: clamp(1.5rem, 3.6vw, 2.2rem); font-weight: 800; margin-top: 0.6rem; }
         .k-meta { font-size: 1.05rem; color: #6B615A; margin-top: 0.5rem; }
+        .k-meta span { white-space: nowrap; }
+        .k-meta span + span::before { content: "\00B7"; margin: 0 0.45rem; color: #A89E96; }
         .k-card.ok   { border-top-color: var(--k-ok); }   .k-card.ok   .k-icon { background: var(--k-ok-soft); color: var(--k-ok); }     .k-card.ok   .k-status { color: var(--k-ok); }
         .k-card.late { border-top-color: var(--k-late); } .k-card.late .k-icon { background: var(--k-late-soft); color: var(--k-late); } .k-card.late .k-status { color: var(--k-late); }
         .k-card.bad  { border-top-color: var(--k-bad); }  .k-card.bad  .k-icon { background: var(--k-bad-soft); color: var(--k-bad); }   .k-card.bad  .k-status { color: var(--k-bad); font-size: clamp(2rem, 5vw, 2.8rem); }
@@ -113,11 +119,30 @@ require_once __DIR__ . '/../../bootstrap.php';
                   background: var(--k-panel); border: 1px solid var(--k-line); border-radius: 999px; padding: 0.6rem 1.1rem; font-weight: 700; }
         .k-busy.show { display: block; }
 
+        /* ---------- Phones / small tablets ---------- */
         @media (max-width: 640px) {
-            .k-top { padding: 0.7rem 0.9rem; gap: 0.7rem; }
-            .k-title p, .k-clock span, .k-fs span { display: none; }
-            .k-clock strong { font-size: 1.25rem; }
-            .k-cam { width: 100%; }
+            .k-top { padding: 0.6rem 0.85rem; padding-top: max(0.6rem, env(safe-area-inset-top)); gap: 0.6rem; }
+            .k-logo { width: 36px; height: 36px; border-radius: 10px; }
+            .k-title h1 { font-size: 1rem; white-space: nowrap; }
+            .k-title h1 .k-long, .k-title p, .k-clock span, .k-fs span { display: none; }
+            .k-clock strong { font-size: 1.15rem; }
+            .k-fs { padding: 0.55rem 0.7rem; }
+            .k-main { justify-content: flex-start; padding: 0.85rem 0.85rem max(0.85rem, env(safe-area-inset-bottom)); gap: 0.75rem; }
+            .k-cam { width: 100%; border-radius: 16px; }
+            #qr-reader video { max-height: calc(100dvh - 12rem); }
+            .k-hint { font-size: 1.05rem; }
+            .k-hint small { font-size: 0.8rem; }
+            .k-card { padding: 1.8rem 1.25rem 1.5rem; border-radius: 22px; border-top-width: 10px; }
+            .k-icon { width: 68px; height: 68px; }
+            .k-icon svg { width: 36px; height: 36px; }
+            .k-meta { font-size: 0.95rem; }
+        }
+        /* Phone held sideways: camera beside nothing - just use the height */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .k-top { padding-top: 0.4rem; padding-bottom: 0.4rem; }
+            .k-hint small { display: none; }
+            .k-cam { width: min(94vw, calc((100dvh - 7.5rem) * 4 / 3)); }
+            #qr-reader video { max-height: calc(100dvh - 7.5rem); }
         }
     </style>
 </head>
@@ -125,7 +150,7 @@ require_once __DIR__ . '/../../bootstrap.php';
     <header class="k-top">
         <div class="k-logo"><img src="/assets/images/logo.jpg" alt="<?= h(config('short_name')) ?> logo"></div>
         <div class="k-title">
-            <h1>QR Attendance Scanner</h1>
+            <h1>QR<span class="k-long"> Attendance</span> Scanner</h1>
             <p><?= h(config('school_name')) ?> &middot; S.Y. <?= h(config('academic_year')) ?></p>
         </div>
         <div class="k-clock"><strong id="k-time">--:--</strong><span id="k-date"></span></div>
@@ -213,7 +238,11 @@ require_once __DIR__ . '/../../bootstrap.php';
         document.getElementById('k-icon').innerHTML = icon;
         document.getElementById('k-status').textContent = status;
         document.getElementById('k-name').textContent = name;
-        document.getElementById('k-meta').textContent = meta;
+        const metaEl = document.getElementById('k-meta');
+        metaEl.textContent = '';
+        (Array.isArray(meta) ? meta : [meta]).filter(Boolean).forEach(m => {
+            const sp = document.createElement('span'); sp.textContent = m; metaEl.appendChild(sp);
+        });
         document.getElementById('k-result').classList.add('show');
         clearTimeout(hideTimer);
         hideTimer = setTimeout(() => {

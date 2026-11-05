@@ -268,6 +268,16 @@ ob_start();
     .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4B7E2E; margin-right: 0.35rem; animation: livePulse 1.6s infinite; }
     @keyframes livePulse { 50% { opacity: 0.25; } }
     .student-item.just-scanned { animation: justScanned 2.4s ease-out; }
+    @media (max-width: 640px) {
+        .scanner-callout { padding: 1rem; gap: 0.75rem; }
+        .scanner-callout .sc-icon { display: none; }
+        .scanner-callout .sc-text { min-width: 0; flex-basis: 100%; }
+        .scanner-callout .btn { width: 100%; justify-content: center; }
+        .session-head-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; }
+        .session-head-actions form { margin-left: auto; }
+        .student-item { padding: 0.65rem 0.7rem; }
+        .student-item code { display: block; margin: 0.15rem 0 0 !important; }
+    }
     @keyframes justScanned { 0% { box-shadow: 0 0 0 3px var(--success); } 100% { box-shadow: 0 0 0 0 transparent; } }
 </style>
 
@@ -284,7 +294,7 @@ ob_start();
                             | <?= format_time($session['start_time']) ?> - <?= format_time($session['end_time']) ?>
                         </p>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 session-head-actions">
                         <span class="badge <?= $session['status'] === 'active' ? 'badge-success' : 'badge-pending' ?>">
                             <?= strtoupper($session['status']) ?>
                         </span>

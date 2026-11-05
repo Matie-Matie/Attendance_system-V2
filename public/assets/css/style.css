@@ -2100,7 +2100,8 @@ html { font-size: 18px; }
 /* --- 2. zoom tolerance --------------------------------------------- */
 /* At 125% browser zoom a 1366px screen behaves like ~1093px. Reflow there
    instead of squeezing, so nobody has to zoom out to read the page. */
-@media (max-width: 1400px) {
+/* min-width: phones keep the stacked mobile layout (this rule used to override it) */
+@media (max-width: 1400px) and (min-width: 769px) {
     .sidebar { width: 236px; }
     .main-content {
         margin-left: 236px;
@@ -2670,3 +2671,38 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
 
 /* Report quick ranges (2026-10-22) */
 .range-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+
+/* ============================================================
+   Phones (<= 768px): compact top bar instead of a tall sidebar
+   - brand row + one horizontally scrollable row of menu chips,
+     so the page content starts near the top of the screen
+   ============================================================ */
+@media (max-width: 768px) {
+    .sidebar {
+        position: sticky; top: 0; z-index: 30;
+        width: 100%; height: auto; min-height: 0; overflow: visible;
+        border-right: none; border-bottom: 1px solid var(--border-color);
+    }
+    .sidebar-header { padding: 0.7rem 1rem 0.35rem; gap: 0.6rem; border-bottom: none; }
+    .sidebar-header .logo { width: 34px; height: 34px; border-radius: 10px; }
+    .sidebar-nav {
+        flex-direction: row; flex-wrap: nowrap; gap: 0.4rem;
+        padding: 0.4rem 1rem 0.7rem; overflow-x: auto; overflow-y: hidden;
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    }
+    .sidebar-nav::-webkit-scrollbar { display: none; }
+    .sidebar-nav .nav-pill { display: none !important; }
+    .sidebar-nav .nav-item {
+        flex: none; white-space: nowrap; margin: 0;
+        padding: 0.5rem 0.85rem; border-radius: 999px; font-size: 0.85rem;
+        border: 1px solid var(--border-color);
+    }
+    .sidebar-nav .nav-item.active { border-color: transparent; background: var(--nav-active) !important; }
+    .sidebar-nav .nav-item.active::before { display: none; }
+    .sidebar-nav .nav-icon { margin-right: 0.15rem; }
+    .sidebar-nav .nav-group, .sidebar-nav hr { display: none; }
+    .sidebar-footer { display: none; }
+    .main-content { padding: 1rem; }
+    .page-header h1 { font-size: 1.5rem; }
+}
+
