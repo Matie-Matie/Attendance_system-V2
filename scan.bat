@@ -49,8 +49,10 @@ goto still_down
 
 rem ---------- 3. Open the scanner ----------
 :open_scanner
-echo  Opening the QR Scanner...
-start "" "%SCANURL%"
+echo  Opening the QR Scanner in Google Chrome...
+rem  Same helper start.bat uses: waits for the site, then opens Chrome
+rem  (default browser only if Chrome is not installed).
+start "" /min powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0bin\open-browser.ps1" -Url "%SCANURL%"
 rem  Give the browser a moment to open, then close this helper window.
 timeout /t 2 /nobreak >nul
 exit /b 0

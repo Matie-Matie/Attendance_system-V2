@@ -5,8 +5,9 @@ rem  Monico Rarama National High School
 rem  Double-click to start. No tech skills needed.
 rem  1. Starts XAMPP's MySQL by itself when it is not running
 rem     (Apache is NOT needed - PHP's built-in server runs the site)
+rem     -> the XAMPP Control Panel does NOT have to be opened first
 rem  2. Prepares the database on first run (one-time, ~1 minute)
-rem  3. Opens the system in your browser automatically
+rem  3. Waits for the site to answer, then opens it in Google Chrome
 rem  Keep this window open while using the system.
 rem  To stop: press CTRL+C in this window, then close it.
 rem ============================================================
@@ -134,16 +135,21 @@ if "%AUTOSTART%"=="1" goto mysql_down
 set AUTOSTART=1
 echo.
 echo  MySQL is not running - starting XAMPP's MySQL automatically...
+echo  (you do not need to open the XAMPP Control Panel)
 call :launch_xampp_mysql
 set WAITED=0
 :mysql_wait
 timeout /t 2 /nobreak >nul
 %MYSQL% -h127.0.0.1 -uroot -e "SELECT 1" >nul 2>"%LOG%"
 if not errorlevel 1 goto check_mysql
+rem  A root password is a real stop - no point in waiting the full minute.
+findstr /c:"1045" "%LOG%" >nul 2>nul
+if not errorlevel 1 goto mysql_password
 set /a WAITED+=2
-if %WAITED% LSS 45 goto mysql_wait
-rem  Still nothing: look once more with fresh eyes (a teacher's XAMPP may
-rem  be configured on port 3307 instead of 3306).
+if %WAITED% LSS 60 goto mysql_wait
+rem  Still nothing: look once more with fresh eyes - a first MySQL start can
+rem  be slow, and a teacher's XAMPP may be configured on port 3307.
+echo  MySQL is taking longer than usual - checking once more...
 goto check_mysql
 
 :launch_xampp_mysql
@@ -153,9 +159,11 @@ set "XAMPPDIR="
 if defined SRVDIR if exist "%SRVDIR%..\..\mysql\bin\mysqld.exe" for %%I in ("%SRVDIR%..\..") do set "XAMPPDIR=%%~fI"
 for %%D in (C D E) do if not defined XAMPPDIR if exist "%%D:\xampp\mysql\bin\mysqld.exe" set "XAMPPDIR=%%D:\xampp"
 if defined XAMPPDIR goto launch_xampp_mysqld
-net start mysql >nul 2>nul
-if not errorlevel 1 exit /b 0
-net start mariadb >nul 2>nul
+rem  No XAMPP: try a normal MySQL/MariaDB Windows service.
+for %%S in (mysql MySQL80 MariaDB mariadb) do (
+    sc query "%%S" >nul 2>nul
+    if not errorlevel 1 net start "%%S" >nul 2>nul
+)
 exit /b 0
 
 :launch_xampp_mysqld
@@ -208,11 +216,20 @@ netstat -ano | findstr /c:":%PORT% " | findstr /c:"LISTENING" >nul 2>nul
 if errorlevel 1 goto check_db
 echo.
 echo  SCPLS v2 already seems to be running (port %PORT% is in use).
-echo  Opening it in your browser. Use the OTHER black window that is
+echo  Opening it in Google Chrome. Use the OTHER black window that is
 echo  already open - you can close this one.
 echo.
-if not defined SCPLS_NO_BROWSER start "" "http://127.0.0.1:%PORT%"
-timeout /t 5 /nobreak >nul
+call :open_site
+timeout /t 3 /nobreak >nul
+exit /b 0
+
+rem ---------- Open the site (Chrome, once the server answers) ----------
+rem  bin\open-browser.ps1 waits for the port and then opens Chrome, so the
+rem  browser never lands on "site can't be reached" while PHP is still
+rem  booting. Runs in its own hidden window, so this script keeps going.
+:open_site
+if defined SCPLS_NO_BROWSER exit /b 0
+start "" /min powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0bin\open-browser.ps1" -Port %PORT%
 exit /b 0
 
 rem ---------- Database setup (first run only) ----------
@@ -322,14 +339,14 @@ rem ---------- Start ----------
 echo.
 echo  ============================================================
 echo   SCPLS v2 is starting...
-echo   Opening http://127.0.0.1:%PORT% in your browser.
+echo   Google Chrome will open http://127.0.0.1:%PORT% in a moment.
 echo   Logins are in README.md (admin / admin123 to begin).
 echo   Keep this window OPEN while using the system.
 echo   To stop: press CTRL+C here, then close the window.
 echo  ============================================================
 echo.
-timeout /t 3 /nobreak >nul
-if not defined SCPLS_NO_BROWSER start "" "http://127.0.0.1:%PORT%"
+rem  The browser opens itself as soon as the server answers (see :open_site).
+call :open_site
 call %PHP% -S 127.0.0.1:%PORT% -t public
 echo.
 echo  The system has stopped. You may close this window.
