@@ -234,8 +234,13 @@ exit /b 0
 
 rem ---------- Database setup (first run only) ----------
 :check_db
-if exist "storage\.first-run-done" goto start_server
-goto first_db
+rem  A folder copied from another PC brings storage\.first-run-done with it,
+rem  but NOT the database. So the database itself is the real test - if the
+rem  marker exists but the database does not, setup runs anyway.
+if not exist "storage\.first-run-done" goto first_db
+%MYSQL% -h127.0.0.1 -uroot -e "SELECT 1 FROM scpls_v2.users LIMIT 1" >nul 2>nul
+if errorlevel 1 goto first_db
+goto start_server
 
 :first_db
 echo.
