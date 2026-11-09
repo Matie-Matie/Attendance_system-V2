@@ -2646,62 +2646,77 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
 .cal-block.is-short strong { display: block; -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; }
 .cal-block.is-short .cb-meta { display: none; }
 
-/* Two classes at the same time share one full-width card instead of two
-   half-width lanes. Each class is still its own link. */
+/* Two classes at the same time share one full-width slot instead of two
+   half-width lanes. Rows sit at the slot's start; a thin rail marks how far
+   the slot runs (the longest class), so no card looks like it starts late. */
 .cal-block.cal-group {
-    gap: 1px;
-    padding: 3px;
-    background: var(--card-bg);
-    border-color: var(--border-color);
-    border-left: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 2px 0 2px 9px;
+    background: none;
+    border: 0;
+    border-radius: 0;
     color: var(--text-primary);
-    box-shadow: 0 1px 2px rgba(26, 20, 16, 0.05);
+    box-shadow: none;
+    overflow: visible;
+}
+.cal-block.cal-group::before {
+    content: "";
+    position: absolute;
+    left: 1px;
+    top: 2px;
+    bottom: 2px;
+    width: 3px;
+    border-radius: 3px;
+    background: rgba(143, 130, 120, 0.22);
 }
 .cg-row {
+    flex: 0 0 auto;
+    min-height: 0;
     display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    min-width: 0;
-    padding: 2px 4px;
-    border-radius: 7px;
-    color: inherit;
+    flex-direction: column;
+    gap: 1px;
+    padding: 3px 6px;
+    border-radius: 9px;
+    border: 1px solid hsl(var(--h) 55% 86%);
+    border-left: 3px solid hsl(var(--h) 62% 44%);
+    background: hsl(var(--h) 80% 96.5%);
+    color: hsl(var(--h) 45% 22%);
     text-decoration: none;
+    overflow: hidden;
 }
-.cg-row + .cg-row { border-top: 1px dashed var(--border-color); padding-top: 4px; }
-.cg-row:hover { background: rgba(26, 20, 16, 0.05); }
+.cg-row:hover { box-shadow: 0 6px 16px rgba(40, 20, 10, 0.12); color: hsl(var(--h) 45% 22%); }
 .cg-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.cg-dot {
-    flex: none;
-    width: 7px; height: 7px;
-    margin-top: 5px;
-    border-radius: 50%;
-    background: hsl(var(--h) 62% 44%);
-}
-.cg-main { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.18; }
 .cg-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .cg-line strong {
     flex: 1; min-width: 0;
-    font-size: 0.78rem; font-weight: 800; letter-spacing: -0.01em;
+    font-size: 0.8rem; font-weight: 800; letter-spacing: -0.01em;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .cg-meta {
-    font-size: 0.66rem; opacity: 0.82;
+    font-size: 0.68rem; opacity: 0.82;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .cg-time {
     flex: none;
-    font-size: 0.62rem; font-weight: 700;
+    font-size: 0.64rem; font-weight: 700;
     opacity: 0.78; white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
 /* Three classes in one hour, or a 45-minute slot: one line per class. */
-.cal-group.is-dense .cg-row { padding: 1px 4px; }
-.cal-group.is-dense .cg-row + .cg-row { padding-top: 2px; }
+.cal-group.is-dense { gap: 2px; padding: 2px 0 2px 7px; }
+.cal-group.is-dense .cg-row { padding: 1px 5px; }
 .cal-group.is-dense .cg-meta { display: none; }
-.cal-group.is-dense .cg-main strong { font-size: 0.74rem; }
-.cal-group.is-dense .cg-dot { margin-top: 4px; }
-[data-theme="dark"] .cal-group { box-shadow: none; }
-[data-theme="dark"] .cg-row:hover { background: rgba(255, 255, 255, 0.06); }
+.cal-group.is-dense .cg-line strong { font-size: 0.74rem; }
+[data-theme="dark"] .cal-block.cal-group::before { background: rgba(255, 255, 255, 0.16); }
+[data-theme="dark"] .cg-row {
+    background: hsl(var(--h) 32% 17% / 0.92);
+    border-color: hsl(var(--h) 30% 28%);
+    border-left-color: hsl(var(--h) 70% 62%);
+    color: hsl(var(--h) 55% 88%);
+}
+[data-theme="dark"] .cg-row:hover { color: hsl(var(--h) 55% 92%); }
 @media (max-width: 1400px) {
     .cal { grid-template-columns: var(--axis) repeat(var(--cols), minmax(8.4rem, 1fr)); min-width: calc(var(--axis) + var(--cols) * 8.4rem); }
 }
@@ -2729,17 +2744,14 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
     .cal-block { padding: 0.15rem 0.35rem; font-size: 0.66rem; border-radius: 6px; gap: 0; }
     .cal-block strong { font-size: 0.72rem; -webkit-line-clamp: 2; }
     .cal-block .cb-time { font-size: 0.6rem; }
-    .cal-group { padding: 2px; }
-    .cg-row { padding: 1px 2px; gap: 4px; }
-    .cg-row + .cg-row { padding-top: 2px; }
-    .cg-main strong { font-size: 0.66rem; }
+    .cal-group { padding: 0; gap: 2px; }
+    .cg-row { padding: 1px 4px; border-radius: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cg-line strong { font-size: 0.66rem; }
     .cg-meta { font-size: 0.58rem; }
     .cg-time { font-size: 0.56rem; }
-    .cg-dot { width: 5px; height: 5px; margin-top: 4px; }
-    .cal-group.is-dense .cg-row { padding: 0 2px; }
-    .cal-group.is-dense .cg-main strong { font-size: 0.58rem; }
+    .cal-group.is-dense .cg-row { padding: 0 3px; }
+    .cal-group.is-dense .cg-line strong { font-size: 0.58rem; }
     .cal-group.is-dense .cg-time { font-size: 0.52rem; }
-    .cal-group.is-dense .cg-dot { width: 4px; height: 4px; margin-top: 3px; }
     .cal-block.is-hour { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0.3rem; }
     .cal-block.is-hour .cb-meta { flex-basis: 100%; }
     .cal-block.is-hour .cb-teacher { display: none; }

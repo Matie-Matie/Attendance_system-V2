@@ -456,17 +456,18 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                     $rowRange = $shortRange($e['start_time'], $e['end_time']);
                                     $rowTeacher = $e['teacher_first'] . ' ' . $e['teacher_last'];
                                     $rowTip = $e['subject_name'] . ' · ' . $e['section_name'] . ' · ' . $rowRange . ($e['room'] ? ' · ' . $e['room'] : '') . ' · ' . $rowTeacher;
+                                    // Same rule as a single card: a one-hour slot keeps the
+                                    // teacher in the tooltip so the line stays readable.
+                                    $rowMetaTeacher = (!$teacherFilter && $lenM > 60) ? ' · ' . h($rowTeacher) : '';
                                 ?>
                                     <a class="cg-row" href="/admin/schedule.php?action=edit&id=<?= (int)$e['id'] ?>"
-                                       title="<?= h($rowTip) ?> — click to edit">
-                                        <span class="cg-dot" style="--h: <?= $hueFor((int)$e['subject_id']) ?>;" aria-hidden="true"></span>
-                                        <span class="cg-main">
-                                            <span class="cg-line">
-                                                <strong><?= h($e['subject_name']) ?></strong>
-                                                <span class="cg-time"><?= h($rowRange) ?></span>
-                                            </span>
-                                            <span class="cg-meta"><?= h($shortSection($e['section_name'], $e['grade_level'])) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?><?= $teacherFilter ? '' : ' · ' . h($rowTeacher) ?></span>
+                                       title="<?= h($rowTip) ?> — click to edit"
+                                       style="--h: <?= $hueFor((int)$e['subject_id']) ?>;">
+                                        <span class="cg-line">
+                                            <strong><?= h($e['subject_name']) ?></strong>
+                                            <span class="cg-time"><?= h($rowRange) ?></span>
                                         </span>
+                                        <span class="cg-meta"><?= h($shortSection($e['section_name'], $e['grade_level'])) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?><?= $rowMetaTeacher ?></span>
                                     </a>
                                 <?php endforeach; ?>
                             </div>
