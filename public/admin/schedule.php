@@ -451,7 +451,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                             </a>
                             <?php else: ?>
                             <div class="cal-block cal-group <?= $dense ? 'is-dense' : '' ?>"
-                                 style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round($lenM / 60, 4) ?>; --h: <?= $hueFor((int)$items[0]['subject_id']) ?>;">
+                                 style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round($lenM / 60, 4) ?>;">
                                 <?php foreach ($items as $e):
                                     $rowRange = $shortRange($e['start_time'], $e['end_time']);
                                     $rowTeacher = $e['teacher_first'] . ' ' . $e['teacher_last'];
@@ -463,10 +463,8 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                     <a class="cg-row" href="/admin/schedule.php?action=edit&id=<?= (int)$e['id'] ?>"
                                        title="<?= h($rowTip) ?> — click to edit"
                                        style="--h: <?= $hueFor((int)$e['subject_id']) ?>;">
-                                        <span class="cg-line">
-                                            <strong><?= h($e['subject_name']) ?></strong>
-                                            <span class="cg-time"><?= h($rowRange) ?></span>
-                                        </span>
+                                        <span class="cg-time"><?= h($rowRange) ?></span>
+                                        <strong><?= h($e['subject_name']) ?></strong>
                                         <span class="cg-meta"><?= h($shortSection($e['section_name'], $e['grade_level'])) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?><?= $rowMetaTeacher ?></span>
                                     </a>
                                 <?php endforeach; ?>

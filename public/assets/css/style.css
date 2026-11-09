@@ -2646,69 +2646,64 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
 .cal-block.is-short strong { display: block; -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; }
 .cal-block.is-short .cb-meta { display: none; }
 
-/* Two classes at the same time share one card, styled exactly like a normal
-   subject card: the first class sets the tint, every class is a plain row
-   inside it (no stacked boxes, no rails). */
+/* Two classes at the same time: one card per subject, each styled like a
+   normal subject card (time, subject, section · room) and stacked in the
+   slot. No merged container, no rails. */
 .cal-block.cal-group {
     display: flex;
     flex-direction: column;
-    gap: 0;
-    padding: 3px 8px;
-    background: hsl(var(--h) 80% 96.5%);
-    border-color: hsl(var(--h) 55% 86%);
-    border-left-color: hsl(var(--h) 62% 44%);
-    color: var(--text-primary);
-    border-radius: 12px;
+    gap: 3px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
     box-shadow: none;
-    overflow: hidden;
+    overflow: visible;
 }
 .cg-row {
     flex: 0 0 auto;
-    min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 1px;
-    padding: 3px 0;
-    border: 0;
-    background: none;
-    color: inherit;
+    padding: 1px 5px;
+    border-radius: 10px;
+    border: 1px solid hsl(var(--h) 55% 86%);
+    border-left: 4px solid hsl(var(--h) 62% 44%);
+    background: hsl(var(--h) 80% 96.5%);
+    color: hsl(var(--h) 45% 22%);
     text-decoration: none;
+    overflow: hidden;
 }
-.cg-row + .cg-row { border-top: 1px solid var(--border-color); }
-.cg-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-radius: 4px; }
-.cg-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.cg-line strong {
-    flex: 1; min-width: 0;
-    font-size: 0.8rem; font-weight: 800; letter-spacing: -0.01em;
-    color: hsl(var(--h) 55% 30%);
+.cg-row:hover { box-shadow: 0 6px 16px rgba(40, 20, 10, 0.12); color: hsl(var(--h) 45% 22%); }
+.cg-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.cg-time {
+    font-size: 0.58rem; font-weight: 700; line-height: 1.05;
+    opacity: 0.8; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.cg-row strong {
+    font-size: 0.76rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.1;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .cg-meta {
-    font-size: 0.68rem; color: var(--text-secondary);
+    font-size: 0.6rem; line-height: 1.05; opacity: 0.85;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.cg-time {
-    flex: none;
-    font-size: 0.64rem; font-weight: 700;
-    color: var(--text-muted);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-}
-/* Three classes in one hour, or a 45-minute slot: one line per class. */
-.cal-group.is-dense { padding: 2px 8px; }
-.cal-group.is-dense .cg-row { padding: 1px 0; }
+/* Three classes in one hour, or a 45-minute slot: keep time + subject, drop
+   the section line so every card still fits. */
+.cal-group.is-dense { gap: 2px; }
+.cal-group.is-dense .cg-row { padding: 0 5px; gap: 0; }
 .cal-group.is-dense .cg-meta { display: none; }
-.cal-group.is-dense .cg-line strong { font-size: 0.74rem; }
-[data-theme="dark"] .cal-block.cal-group {
+.cal-group.is-dense .cg-time { font-size: 0.54rem; line-height: 1; }
+.cal-group.is-dense .cg-row strong { font-size: 0.7rem; line-height: 1.05; }
+[data-theme="dark"] .cg-row {
     background: hsl(var(--h) 32% 17% / 0.92);
     border-color: hsl(var(--h) 30% 28%);
     border-left-color: hsl(var(--h) 70% 62%);
-    color: var(--text-primary);
+    color: hsl(var(--h) 55% 88%);
 }
-[data-theme="dark"] .cg-line strong { color: hsl(var(--h) 55% 78%); }
-[data-theme="dark"] .cg-row + .cg-row { border-top-color: rgba(255, 255, 255, 0.12); }
-[data-theme="dark"] .cg-meta { color: rgba(243, 239, 234, 0.62); }
-[data-theme="dark"] .cg-time { color: rgba(243, 239, 234, 0.55); }
+[data-theme="dark"] .cg-row:hover { color: hsl(var(--h) 55% 92%); }
 @media (max-width: 1400px) {
     .cal { grid-template-columns: var(--axis) repeat(var(--cols), minmax(8.4rem, 1fr)); min-width: calc(var(--axis) + var(--cols) * 8.4rem); }
 }
@@ -2736,14 +2731,17 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
     .cal-block { padding: 0.15rem 0.35rem; font-size: 0.66rem; border-radius: 6px; gap: 0; }
     .cal-block strong { font-size: 0.72rem; -webkit-line-clamp: 2; }
     .cal-block .cb-time { font-size: 0.6rem; }
-    .cal-group { padding: 1px 4px; }
-    .cg-row { padding: 1px 0; }
-    .cg-line strong { font-size: 0.66rem; }
-    .cg-meta { font-size: 0.58rem; color: #444; }
-    .cg-time { font-size: 0.56rem; color: #555; }
-    .cal-group.is-dense .cg-row { padding: 0; }
-    .cal-group.is-dense .cg-line strong { font-size: 0.58rem; }
-    .cal-group.is-dense .cg-time { font-size: 0.52rem; }
+    .cal-group { padding: 0; gap: 1px; }
+    .cg-row {
+        display: grid; grid-template-columns: 1fr auto; column-gap: 5px; row-gap: 0;
+        align-items: baseline; padding: 0 4px; border-radius: 6px;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .cg-row strong { grid-row: 1; grid-column: 1; font-size: 0.6rem; line-height: 1.15; }
+    .cg-time { display: block; grid-row: 1; grid-column: 2; font-size: 0.5rem; line-height: 1.15; }
+    .cg-meta { grid-row: 2; grid-column: 1 / -1; font-size: 0.52rem; line-height: 1.15; }
+    .cal-group.is-dense .cg-row { padding: 0 3px; }
+    .cal-group.is-dense .cg-meta { display: none; }
     .cal-block.is-hour { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0.3rem; }
     .cal-block.is-hour .cb-meta { flex-basis: 100%; }
     .cal-block.is-hour .cb-teacher { display: none; }
