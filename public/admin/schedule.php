@@ -451,7 +451,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                             </a>
                             <?php else: ?>
                             <div class="cal-block cal-group <?= $dense ? 'is-dense' : '' ?>"
-                                 style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round($lenM / 60, 4) ?>;">
+                                 style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round($lenM / 60, 4) ?>; --h: <?= $hueFor((int)$items[0]['subject_id']) ?>;">
                                 <?php foreach ($items as $e):
                                     $rowRange = $shortRange($e['start_time'], $e['end_time']);
                                     $rowTeacher = $e['teacher_first'] . ' ' . $e['teacher_last'];

@@ -13,7 +13,7 @@
 - **`start.bat` starts XAMPP's MySQL by itself** when it is not running (XAMPP on `C:`, `D:` or `E:`, or a MySQL/MariaDB service), waits for it, then continues. Apache is not needed — the site runs on PHP's built-in server. The error screen now explains what to check if MySQL still refuses to start.
 - **`scan.bat` starts everything too** — on a kiosk PC it starts MySQL + the system (first-run setup included), waits, then opens the QR scanner directly. It no longer asks you to run `start.bat` first, and it does not open an extra dashboard tab.
 - **Teacher Schedule readability** — subject names wrap on two lines instead of being cut ("Araling Panli…"), class times read short (`8–9 AM`), sections read `G12 HUMSS · RM 102`, and the teacher line is kept for long blocks while 1-hour blocks show it in the tooltip. Hour rows are taller and day columns wider.
-- **No more half-width cards** — classes that start at the same time now share one full-width card with a row per class (English + ICT at 8 AM), instead of two narrow columns side by side.
+- **No more half-width cards** — classes that start at the same time share one full-width card, styled like a normal subject card, with a row per class inside (English + ICT at 8 AM) instead of two narrow columns side by side.
 
 ## November 2026 — separate QR Scanner (2026-11-05)
 
