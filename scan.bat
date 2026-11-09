@@ -20,6 +20,18 @@ cd /d "%~dp0"
 set PORT=8000
 set "SCANURL=http://127.0.0.1:%PORT%/student/scan.php"
 
+rem  Must run from INSIDE the SCPLS folder (a Desktop copy cannot find
+rem  start.bat). The real start.bat puts a proper shortcut on the Desktop.
+if exist "%~dp0start.bat" if exist "%~dp0public\index.php" goto check_running
+echo.
+echo  [STOP] This file was copied out of the SCPLS folder, so it cannot
+echo  start the system. Delete this copy, open the real SCPLS folder (for
+echo  example C:\SCLPS) and double-click start.bat there ONCE - it puts a
+echo  "SCPLS QR Scanner" shortcut on your Desktop. Use that one.
+echo.
+pause
+exit /b 1
+
 rem ---------- 1. Already running? Open the scanner right away ----------
 :check_running
 netstat -ano | findstr /c:":%PORT% " | findstr /c:"LISTENING" >nul 2>nul

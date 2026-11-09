@@ -18,7 +18,27 @@ set PORT=8000
 set "TMPF=%TEMP%\scpls_q.txt"
 set "LOG=%TEMP%\scpls_setup_log.txt"
 
+rem  This file must run from INSIDE the SCPLS folder. A copy on the Desktop
+rem  (or opened straight from a .zip) cannot find the system's files.
+if not exist "%~dp0public\index.php" goto wrong_folder
+
+rem  Desktop shortcuts for whoever is logged in: "SCPLS QR Scanner" (one
+rem  click = straight to the QR camera) and "SCPLS Attendance System".
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0bin\make-shortcuts.ps1" >nul 2>nul
+
 goto check_mysql
+
+:wrong_folder
+echo.
+echo  [STOP] This file was copied out of the SCPLS folder (or opened from
+echo  inside a .zip), so it cannot find the system's files.
+echo  1. Delete this copy.
+echo  2. Open the real SCPLS folder (for example C:\SCLPS) and double-click
+echo     start.bat there ONCE. It puts two shortcuts on your Desktop:
+echo     "SCPLS QR Scanner" and "SCPLS Attendance System". Use those.
+echo.
+pause
+exit /b 1
 
 rem ---------- PHP (XAMPP first, then PATH) ----------
 rem  XAMPP's PHP has the MySQL driver switched on. A separate PHP on PATH
@@ -27,7 +47,8 @@ rem  "temporarily unavailable" with "could not find driver" in this window.
 :check_php
 set PHP=
 set PHPEXT=
-if defined SRVDIR if exist "%SRVDIR%..\..\php\php.exe" for %%I in ("%SRVDIR%..\..\php\php.exe") do set PHP="%%~fI"
+if defined FOUNDXAMPP if exist "%FOUNDXAMPP%\php\php.exe" set PHP="%FOUNDXAMPP%\php\php.exe"
+if not defined PHP if defined SRVDIR if exist "%SRVDIR%..\..\php\php.exe" for %%I in ("%SRVDIR%..\..\php\php.exe") do set PHP="%%~fI"
 for %%D in (C D E) do if not defined PHP if exist "%%D:\xampp\php\php.exe" set PHP="%%D:\xampp\php\php.exe"
 if defined PHP goto php_driver
 where php >nul 2>nul
@@ -77,10 +98,15 @@ set MYSQLDUMP=
 set SRVCLIENT=
 set SRVDIR=
 set DBPORT=
-for /f "usebackq tokens=1,2 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0database\find-mysql.ps1" 2^>nul`) do (
+set FOUNDXAMPP=
+rem  find-mysql.ps1 also returns the XAMPP folder it found (any drive,
+rem  Program Files, registry, or the running Control Panel) - not just C/D/E.
+for /f "usebackq tokens=1,2,3 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0database\find-mysql.ps1" 2^>nul`) do (
     set "SRVCLIENT=%%A"
     set "DBPORT=%%B"
+    set "FOUNDXAMPP=%%C"
 )
+if defined FOUNDXAMPP if not exist "%FOUNDXAMPP%\mysql\bin\mysqld.exe" set FOUNDXAMPP=
 if not defined DBPORT set DBPORT=3306
 if "%SRVCLIENT%"=="none" set SRVCLIENT=
 if defined SRVCLIENT if not exist "%SRVCLIENT%" set SRVCLIENT=
@@ -91,6 +117,9 @@ if exist "%SRVDIR%mysqldump.exe" set MYSQLDUMP="%SRVDIR%mysqldump.exe" -P%DBPORT
 goto mysql_found
 
 :client_fallback
+if defined FOUNDXAMPP if exist "%FOUNDXAMPP%\mysql\bin\mysql.exe" set MYSQL="%FOUNDXAMPP%\mysql\bin\mysql.exe" -P%DBPORT%
+if defined FOUNDXAMPP if exist "%FOUNDXAMPP%\mysql\bin\mysqldump.exe" set MYSQLDUMP="%FOUNDXAMPP%\mysql\bin\mysqldump.exe" -P%DBPORT%
+if defined MYSQL goto mysql_found
 for %%D in (C D E) do if not defined MYSQL if exist "%%D:\xampp\mysql\bin\mysql.exe" (
     set MYSQL="%%D:\xampp\mysql\bin\mysql.exe" -P%DBPORT%
     set MYSQLDUMP="%%D:\xampp\mysql\bin\mysqldump.exe" -P%DBPORT%
@@ -156,6 +185,8 @@ goto check_mysql
 rem  Order: the XAMPP that owns the detected server folder, a standard
 rem  C:/D:/E:\xampp install, then a MySQL/MariaDB Windows service.
 set "XAMPPDIR="
+if defined FOUNDXAMPP set "XAMPPDIR=%FOUNDXAMPP%"
+if defined XAMPPDIR goto launch_xampp_mysqld
 if defined SRVDIR if exist "%SRVDIR%..\..\mysql\bin\mysqld.exe" for %%I in ("%SRVDIR%..\..") do set "XAMPPDIR=%%~fI"
 for %%D in (C D E) do if not defined XAMPPDIR if exist "%%D:\xampp\mysql\bin\mysqld.exe" set "XAMPPDIR=%%D:\xampp"
 if defined XAMPPDIR goto launch_xampp_mysqld

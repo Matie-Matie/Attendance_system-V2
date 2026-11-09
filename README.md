@@ -8,6 +8,12 @@
 >
 > (Older web demo: https://scpls.xo.je — 2026-10-14 build. The school now runs it locally.)
 
+## November 2026 — starts for everyone, one-click QR (2026-11-09, late)
+
+- **XAMPP is found wherever it is installed** — any drive, `Program Files`, the XAMPP installer's registry entry, or a running XAMPP Control Panel. Before, only `C:\xampp`, `D:\xampp` and `E:\xampp` were checked, so on some PCs the system only started after someone had opened XAMPP and pressed Start on MySQL by hand.
+- **Desktop shortcuts, made automatically** — every run of `start.bat` puts **SCPLS QR Scanner** (one click → straight to the QR camera) and **SCPLS Attendance System** on the Desktop of the Windows account that ran it. These are proper shortcuts, so they keep working.
+- **Copied `.bat` files explain themselves** — a `start.bat` / `scan.bat` copied to the Desktop (or opened from inside a `.zip`) used to close at once. It now says what happened and how to get the shortcut.
+
 ## November 2026 — one double-click, readable schedule (2026-11-09)
 
 - **`start.bat` starts XAMPP's MySQL by itself** when it is not running (XAMPP on `C:`, `D:` or `E:`, or a MySQL/MariaDB service), waits up to a minute for it, then continues. Apache is not needed — the site runs on PHP's built-in server. The error screen now explains what to check if MySQL still refuses to start.

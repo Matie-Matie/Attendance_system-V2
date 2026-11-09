@@ -1,5 +1,5 @@
 # Tells start.bat which MySQL client to use and on which port.
-# Prints exactly one line: "<client exe>|<port>"
+# Prints exactly one line: "<client exe>|<port>|<xampp folder, empty if none>"
 #
 # SCPLS keeps its data inside XAMPP's MySQL, so XAMPP always wins:
 #   1. XAMPP's own server is running        -> its client + the port it listens on
@@ -11,11 +11,53 @@
 # 3307) running. Picking that one made SCPLS try to log in as root on the
 # wrong server and stop with "access denied" even though XAMPP was installed.
 
+function Test-Xampp($path) {
+    return ($path -and (Test-Path (Join-Path $path 'mysql\bin\mysqld.exe')))
+}
+
+# XAMPP is not always in C:\xampp. Look everywhere a school PC might have it:
+# every local drive, Program Files, the installer's registry key, and the
+# folder of a XAMPP that is already running (Control Panel / mysqld).
+# (Before: only C/D/E:\xampp - so a XAMPP elsewhere was found ONLY after
+#  someone started it by hand in the Control Panel.)
 function Find-XamppDir {
-    foreach ($drive in 'C', 'D', 'E', 'F', 'G') {
-        $path = "${drive}:\xampp"
-        if (Test-Path (Join-Path $path 'mysql\bin\mysqld.exe')) { return $path }
+    $candidates = New-Object System.Collections.Generic.List[string]
+
+    # A XAMPP that is running right now tells us exactly where it lives.
+    foreach ($name in 'xampp-control', 'mysqld', 'httpd') {
+        Get-Process $name -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.Path) {
+                $dir = Split-Path $_.Path
+                for ($i = 0; $i -lt 3 -and $dir; $i++) {
+                    if (Test-Xampp $dir) { $candidates.Add($dir); break }
+                    $dir = Split-Path $dir
+                }
+            }
+        }
     }
+
+    foreach ($key in 'HKLM:\SOFTWARE\xampp', 'HKLM:\SOFTWARE\WOW6432Node\xampp', 'HKCU:\SOFTWARE\xampp') {
+        try {
+            $dir = (Get-ItemProperty -Path $key -ErrorAction Stop).Install_Dir
+            if ($dir) { $candidates.Add($dir.TrimEnd('\')) }
+        } catch { }
+    }
+
+    $drives = @()
+    try {
+        $drives = [System.IO.DriveInfo]::GetDrives() |
+            Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady } |
+            ForEach-Object { $_.Name.TrimEnd('\') }
+    } catch { }
+    if (-not $drives) { $drives = 'C:', 'D:', 'E:', 'F:', 'G:' }
+    foreach ($d in $drives) {
+        $candidates.Add("$d\xampp")
+        $candidates.Add("$d\Program Files\xampp")
+        $candidates.Add("$d\Program Files (x86)\xampp")
+        $candidates.Add("$d\XAMPP\xampp")
+    }
+
+    foreach ($c in $candidates) { if (Test-Xampp $c) { return $c } }
     return $null
 }
 
@@ -64,7 +106,7 @@ if ($xamppDir) {
     if ($running) {
         $client = Get-Client $running.Path
         if (-not $client) { $client = $xamppClient }
-        "$client|$($running.Port)"
+        "$client|$($running.Port)|$xamppDir"
         exit 0
     }
 
@@ -74,7 +116,7 @@ if ($xamppDir) {
     if (-not (Test-Path $client)) {
         $client = $servers | ForEach-Object { Get-Client $_.Path } | Select-Object -First 1
     }
-    if ($client) { "$client|$(Get-XamppPort $xamppDir)" } else { "none|$(Get-XamppPort $xamppDir)" }
+    if ($client) { "$client|$(Get-XamppPort $xamppDir)|$xamppDir" } else { "none|$(Get-XamppPort $xamppDir)|$xamppDir" }
     exit 0
 }
 
