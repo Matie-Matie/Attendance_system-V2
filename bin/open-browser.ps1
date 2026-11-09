@@ -56,8 +56,23 @@ if (-not $chrome) {
 }
 
 # ---- 3. Open it -----------------------------------------------------------
+# Order: Google Chrome -> the computer's default browser (Edge on a Windows
+# PC that never installed Chrome) -> Edge itself, in case the default handler
+# is missing or broken. Nothing here requires Chrome to exist.
 if ($chrome) {
-    Start-Process -FilePath $chrome -ArgumentList $url
-} else {
-    Start-Process $url   # no Chrome on this computer - default browser
+    try {
+        Start-Process -FilePath $chrome -ArgumentList $url
+        return
+    } catch { }
+}
+
+try {
+    Start-Process $url
+} catch {
+    $edgePaths = @(
+        "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+        "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
+    )
+    $edge = $edgePaths | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if ($edge) { Start-Process -FilePath $edge -ArgumentList $url }
 }

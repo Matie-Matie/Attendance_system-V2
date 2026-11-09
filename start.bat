@@ -216,8 +216,8 @@ netstat -ano | findstr /c:":%PORT% " | findstr /c:"LISTENING" >nul 2>nul
 if errorlevel 1 goto check_db
 echo.
 echo  SCPLS v2 already seems to be running (port %PORT% is in use).
-echo  Opening it in Google Chrome. Use the OTHER black window that is
-echo  already open - you can close this one.
+echo  Opening it in your browser (Chrome if installed). Use the OTHER black
+echo  window that is already open - you can close this one.
 echo.
 call :open_site
 timeout /t 3 /nobreak >nul
@@ -339,7 +339,8 @@ rem ---------- Start ----------
 echo.
 echo  ============================================================
 echo   SCPLS v2 is starting...
-echo   Google Chrome will open http://127.0.0.1:%PORT% in a moment.
+echo   The site opens at http://127.0.0.1:%PORT% in a moment
+echo   (Chrome if installed, otherwise your usual browser).
 echo   Logins are in README.md (admin / admin123 to begin).
 echo   Keep this window OPEN while using the system.
 echo   To stop: press CTRL+C here, then close the window.

@@ -2,7 +2,7 @@
 
 **Smart Class Presence Log-in System** — QR-code based student attendance tracking for **Monico Rarama National High School**, Academic Year 2026–2027.
 
-**Runs on your own PC:** install XAMPP (PHP + MySQL), then double-click **`start.bat`** — it starts XAMPP's MySQL by itself (Apache is not needed), prepares the database on first run, and opens http://127.0.0.1:8000 in **Google Chrome** (the default browser if Chrome is not installed). You never have to touch the XAMPP Control Panel. Logins are below.
+**Runs on your own PC:** install XAMPP (PHP + MySQL), then double-click **`start.bat`** — it starts XAMPP's MySQL by itself (Apache is not needed), prepares the database on first run, and opens http://127.0.0.1:8000 in **Google Chrome** when it is installed — otherwise in whatever browser the PC has (Edge, Brave, Firefox). You never have to touch the XAMPP Control Panel. Logins are below.
 
 > **Updates:** download the latest copy of this repo and run `start.bat` again. Your students, teachers and attendance stay in MySQL — updating the files never deletes them.
 >
@@ -12,7 +12,7 @@
 
 - **`start.bat` starts XAMPP's MySQL by itself** when it is not running (XAMPP on `C:`, `D:` or `E:`, or a MySQL/MariaDB service), waits up to a minute for it, then continues. Apache is not needed — the site runs on PHP's built-in server. The error screen now explains what to check if MySQL still refuses to start.
 - **Other MySQL servers no longer confuse it** — a PC with a separate MySQL installed (e.g. `MySQL84` on port 3307) used to be picked up as "our" database, so `start.bat` stopped with *access denied for root*. It now always follows XAMPP's own settings, starts XAMPP's MySQL on its configured port, and only falls back to another server when XAMPP is not installed at all.
-- **The site opens in Chrome, ready to use** — `bin\open-browser.ps1` waits until the port really answers, then opens Chrome (default browser if Chrome is missing), so the tab never lands on "site can't be reached" while PHP is still booting. `scan.bat` uses the same opener for the QR scanner page.
+- **The site opens in Chrome, ready to use** — `bin\open-browser.ps1` waits until the port really answers, then opens Chrome; on a PC without Chrome it opens the default browser and falls back to Edge itself if the default is broken. The tab never lands on "site can't be reached" while PHP is still booting. `scan.bat` uses the same opener for the QR scanner page.
 - **`scan.bat` starts everything too** — on a kiosk PC it starts MySQL + the system (first-run setup included), waits, then opens the QR scanner directly. It no longer asks you to run `start.bat` first, and it does not open an extra dashboard tab.
 - **Teacher Schedule readability** — subject names wrap on two lines instead of being cut ("Araling Panli…"), class times read short (`8–9 AM`), sections read `G12 HUMSS · RM 102`, and the teacher line is kept for long blocks while 1-hour blocks show it in the tooltip. Hour rows are taller and day columns wider.
 - **Week board instead of a time grid** — each day is a column of full-size subject cards in time order (time, subject, section · room, teacher). Every card looks the same, and two classes at the same hour are simply two cards instead of being squeezed into half-width lanes. The hour grid is gone; phones stack the five days vertically.
