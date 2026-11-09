@@ -291,44 +291,24 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
 
     $toMin = fn(string $t): int => (int) substr($t, 0, 2) * 60 + (int) substr($t, 3, 2);
 
-    // Visible window: whole hours covering every class, never less than 7 AM – 5 PM.
-    $winStart = 7 * 60; $winEnd = 17 * 60; $weekMinutes = 0;
+    // Total teaching time in the week, for the badge.
+    $weekMinutes = 0;
     foreach ($entries as $e) {
-        $winStart = min($winStart, intdiv($toMin($e['start_time']), 60) * 60);
-        $winEnd = max($winEnd, (int) ceil($toMin($e['end_time']) / 60) * 60);
         $weekMinutes += $toMin($e['end_time']) - $toMin($e['start_time']);
     }
-    $hours = intdiv($winEnd - $winStart, 60);
 
     // Mon–Fri always; Saturday only when something is scheduled on it.
     $calDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     foreach ($entries as $e) { if ($e['day_of_week'] === 'Saturday') { $calDays[] = 'Saturday'; break; } }
 
-    // Classes that start at the same minute are one wide block: no class is
-    // ever squeezed into a half-width lane. A class that starts later but
-    // overlaps (a make-up class) gets its own full-width block on top.
+    // Every day is a stack of full-size class cards, in time order. Two classes
+    // at the same hour are just two cards — no grid, no half-height squeeze.
     $byDay = array_fill_keys($calDays, []);
     $dayCounts = array_fill_keys($calDays, 0);
     foreach ($entries as $e) {
         $byDay[$e['day_of_week']][] = $e;
         $dayCounts[$e['day_of_week']]++;
     }
-    foreach ($byDay as &$list) {
-        $groups = [];
-        foreach ($list as $e) {
-            $start = $toMin($e['start_time']);
-            $end = $toMin($e['end_time']);
-            $last = count($groups) - 1;
-            if ($last >= 0 && $groups[$last]['start'] === $start) {
-                $groups[$last]['end'] = max($groups[$last]['end'], $end);
-                $groups[$last]['items'][] = $e;
-            } else {
-                $groups[] = ['start' => $start, 'end' => $end, 'items' => [$e]];
-            }
-        }
-        $list = $groups;
-    }
-    unset($list);
 
     // Stable colour per subject so the same subject reads the same all week.
     $hues = [352, 212, 148, 32, 268, 186, 12, 300];
@@ -343,9 +323,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     };
 
     $todayName = date('l');
-    $nowMin = $toMin(date('H:i'));
-    $hourLabel = fn(int $m): string => date('g A', mktime(intdiv($m, 60), 0));
-    // "8–9 AM" (no ":00") so narrow lanes keep the time on one line.
+    // "8–9 AM" (no ":00") so the time stays short on every card.
     $shortRange = function (string $a, string $b): string {
         $ta = strtotime($a); $tb = strtotime($b);
         $fmt = fn(int $ts): string => date('i', $ts) === '00' ? date('g', $ts) : date('g:i', $ts);
@@ -405,75 +383,35 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
         <?php if (empty($entries)): ?>
             <p class="cal-empty no-print">No classes for this teacher yet — use <strong>+ Add Class</strong> to build their week.</p>
         <?php endif; ?>
-        <div class="cal-scroll">
-            <div class="cal" style="--hours: <?= $hours ?>; --cols: <?= count($calDays) ?>;">
-                <div class="cal-corner"></div>
-                <?php foreach ($calDays as $d): ?>
-                    <div class="cal-dayhead <?= $d === $todayName ? 'is-today' : '' ?>">
+        <div class="week-grid" style="--cols: <?= count($calDays) ?>;">
+            <?php foreach ($calDays as $d): ?>
+                <section class="week-day <?= $d === $todayName ? 'is-today' : '' ?>">
+                    <header class="week-dayhead <?= $d === $todayName ? 'is-today' : '' ?>">
                         <?= $d ?>
                         <span><?= $dayCounts[$d] ?> <?= $dayCounts[$d] === 1 ? 'class' : 'classes' ?></span>
-                    </div>
-                <?php endforeach; ?>
-
-                <div class="cal-times" aria-hidden="true">
-                    <?php for ($i = 0; $i < $hours; $i++): ?>
-                        <span style="--i: <?= $i ?>;"><?= $hourLabel($winStart + $i * 60) ?></span>
-                    <?php endfor; ?>
-                </div>
-                <?php foreach ($calDays as $d): ?>
-                    <div class="cal-col <?= $d === $todayName ? 'is-today' : '' ?>">
-                        <?php if ($d === $todayName && $nowMin > $winStart && $nowMin < $winEnd): ?>
-                            <div class="cal-now no-print" style="--top: <?= round(($nowMin - $winStart) / 60, 4) ?>;" aria-hidden="true"></div>
-                        <?php endif; ?>
-                        <?php foreach ($byDay[$d] as $group):
-                            $items = $group['items'];
-                            $startM = $group['start'];
-                            $endM = $group['end'];
-                            $lenM = $endM - $startM;
-                            $multi = count($items) > 1;
-                            // Two short lines fit a 1-hour card; anything tighter
-                            // drops the meta line so no row is ever clipped.
-                            $dense = $multi && (count($items) >= 3 || $lenM <= 45);
-                            $e = $items[0];
+                    </header>
+                    <div class="week-list">
+                        <?php foreach ($byDay[$d] as $e):
                             $teacherName = $e['teacher_first'] . ' ' . $e['teacher_last'];
                             $timeRange = $shortRange($e['start_time'], $e['end_time']);
                             $tip = $e['subject_name'] . ' · ' . $e['section_name'] . ' · ' . $timeRange . ($e['room'] ? ' · ' . $e['room'] : '') . ' · ' . $teacherName;
                         ?>
-                            <?php if (!$multi): ?>
-                            <a class="cal-block <?= $lenM <= 45 ? 'is-short' : '' ?> <?= $lenM <= 60 ? 'is-hour' : '' ?>"
+                            <a class="class-card"
                                href="/admin/schedule.php?action=edit&id=<?= (int)$e['id'] ?>"
                                title="<?= h($tip) ?> — click to edit"
-                               style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round($lenM / 60, 4) ?>; --h: <?= $hueFor((int)$e['subject_id']) ?>;">
-                                <span class="cb-time"><?= h($timeRange) ?></span>
-                                <strong><?= h($e['subject_name']) ?></strong>
-                                <span class="cb-meta"><?= h($shortSection($e['section_name'], $e['grade_level'])) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?></span>
-                                <?php if (!$teacherFilter): ?><span class="cb-meta cb-teacher"><?= h($teacherName) ?></span><?php endif; ?>
+                               style="--h: <?= $hueFor((int)$e['subject_id']) ?>;">
+                                <span class="cc-time"><?= h($timeRange) ?></span>
+                                <strong class="cc-subject"><?= h($e['subject_name']) ?></strong>
+                                <span class="cc-meta"><?= h($shortSection($e['section_name'], $e['grade_level'])) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?></span>
+                                <?php if (!$teacherFilter): ?><span class="cc-teacher"><?= h($teacherName) ?></span><?php endif; ?>
                             </a>
-                            <?php else: ?>
-                            <div class="cal-block cal-group <?= $dense ? 'is-dense' : '' ?>"
-                                 style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round($lenM / 60, 4) ?>;">
-                                <?php foreach ($items as $e):
-                                    $rowRange = $shortRange($e['start_time'], $e['end_time']);
-                                    $rowTeacher = $e['teacher_first'] . ' ' . $e['teacher_last'];
-                                    $rowTip = $e['subject_name'] . ' · ' . $e['section_name'] . ' · ' . $rowRange . ($e['room'] ? ' · ' . $e['room'] : '') . ' · ' . $rowTeacher;
-                                    // Same rule as a single card: a one-hour slot keeps the
-                                    // teacher in the tooltip so the line stays readable.
-                                    $rowMetaTeacher = (!$teacherFilter && $lenM > 60) ? ' · ' . h($rowTeacher) : '';
-                                ?>
-                                    <a class="cg-row" href="/admin/schedule.php?action=edit&id=<?= (int)$e['id'] ?>"
-                                       title="<?= h($rowTip) ?> — click to edit"
-                                       style="--h: <?= $hueFor((int)$e['subject_id']) ?>;">
-                                        <span class="cg-time"><?= h($rowRange) ?></span>
-                                        <strong><?= h($e['subject_name']) ?></strong>
-                                        <span class="cg-meta"><?= h($shortSection($e['section_name'], $e['grade_level'])) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?><?= $rowMetaTeacher ?></span>
-                                    </a>
-                                <?php endforeach; ?>
-                            </div>
-                            <?php endif; ?>
                         <?php endforeach; ?>
+                        <?php if ($dayCounts[$d] === 0): ?>
+                            <p class="week-empty">No classes</p>
+                        <?php endif; ?>
                     </div>
-                <?php endforeach; ?>
-            </div>
+                </section>
+            <?php endforeach; ?>
         </div>
     </div>
     <style>@media print { @page { size: landscape; margin: 10mm; } }</style>
