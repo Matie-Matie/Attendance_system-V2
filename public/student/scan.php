@@ -275,6 +275,6 @@ require_once __DIR__ . '/../../bootstrap.php';
         startScanner();
     });
     </script>
-    <script src="/assets/js/zoom-lock.js?v=20261021" defer></script>
+    <script src="<?= asset("/assets/js/zoom-lock.js") ?>" defer></script>
 </body>
 </html>

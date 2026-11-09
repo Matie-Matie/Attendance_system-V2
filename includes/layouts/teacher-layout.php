@@ -29,7 +29,7 @@ $currentPage = $currentPage ?? '';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/style.css?v=20261105">
+    <link rel="stylesheet" href="<?= asset("/assets/css/style.css") ?>">
 </head>
 <body>
     <div class="layout">
@@ -130,6 +130,6 @@ $currentPage = $currentPage ?? '';
         window.addEventListener('resize', function () { place(active, false); });
     })();
     </script>
-    <script src="/assets/js/zoom-lock.js?v=20261021" defer></script>
+    <script src="<?= asset("/assets/js/zoom-lock.js") ?>" defer></script>
 </body>
 </html>

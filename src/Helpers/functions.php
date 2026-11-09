@@ -22,6 +22,19 @@ function h(mixed $value): string
 }
 
 /**
+ * URL for a file under public/, versioned by the file's own mtime.
+ * Without this the browser can keep serving an old stylesheet after an
+ * update (the school PC never knows to hard-refresh).
+ */
+function asset(string $path): string
+{
+    $path = '/' . ltrim($path, '/');
+    $file = BASE_PATH . '/public' . $path;
+    $version = is_file($file) ? filemtime($file) : null;
+    return $version === null ? $path : $path . '?v=' . $version;
+}
+
+/**
  * Redirect to a URL
  */
 function redirect(string $url): void

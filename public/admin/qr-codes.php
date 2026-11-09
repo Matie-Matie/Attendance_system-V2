@@ -56,7 +56,7 @@ if ($singleStudentId > 0) {
 ob_start();
 ?>
 
-<link rel="stylesheet" href="/assets/css/scan.css">
+<link rel="stylesheet" href="<?= asset("/assets/css/scan.css") ?>">
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
 <?php if ($singleStudentId > 0 && !empty($students)): $s = $students[0]; ?>
