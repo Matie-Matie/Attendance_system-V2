@@ -2612,8 +2612,8 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
     position: absolute;
     top: calc(var(--top) * var(--hour) + 2px);
     height: calc(var(--len) * var(--hour) - 4px);
-    left: calc(var(--lane) / var(--lanes) * 100% + 4px);
-    width: calc(100% / var(--lanes) - 8px);
+    left: 4px;
+    width: calc(100% - 8px);
     display: flex; flex-direction: column; gap: 0.1rem;
     padding: 0.32rem 0.5rem;
     border-radius: 12px;
@@ -2645,6 +2645,63 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
 .cal-block.is-short { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0.4rem; padding-block: 0.25rem; }
 .cal-block.is-short strong { display: block; -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; }
 .cal-block.is-short .cb-meta { display: none; }
+
+/* Two classes at the same time share one full-width card instead of two
+   half-width lanes. Each class is still its own link. */
+.cal-block.cal-group {
+    gap: 1px;
+    padding: 3px;
+    background: var(--card-bg);
+    border-color: var(--border-color);
+    border-left: 1px solid var(--border-color);
+    color: var(--text-primary);
+    box-shadow: 0 1px 2px rgba(26, 20, 16, 0.05);
+}
+.cg-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+    padding: 2px 4px;
+    border-radius: 7px;
+    color: inherit;
+    text-decoration: none;
+}
+.cg-row + .cg-row { border-top: 1px dashed var(--border-color); padding-top: 4px; }
+.cg-row:hover { background: rgba(26, 20, 16, 0.05); }
+.cg-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.cg-dot {
+    flex: none;
+    width: 7px; height: 7px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: hsl(var(--h) 62% 44%);
+}
+.cg-main { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.18; }
+.cg-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cg-line strong {
+    flex: 1; min-width: 0;
+    font-size: 0.78rem; font-weight: 800; letter-spacing: -0.01em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cg-meta {
+    font-size: 0.66rem; opacity: 0.82;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cg-time {
+    flex: none;
+    font-size: 0.62rem; font-weight: 700;
+    opacity: 0.78; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+/* Three classes in one hour, or a 45-minute slot: one line per class. */
+.cal-group.is-dense .cg-row { padding: 1px 4px; }
+.cal-group.is-dense .cg-row + .cg-row { padding-top: 2px; }
+.cal-group.is-dense .cg-meta { display: none; }
+.cal-group.is-dense .cg-main strong { font-size: 0.74rem; }
+.cal-group.is-dense .cg-dot { margin-top: 4px; }
+[data-theme="dark"] .cal-group { box-shadow: none; }
+[data-theme="dark"] .cg-row:hover { background: rgba(255, 255, 255, 0.06); }
 @media (max-width: 1400px) {
     .cal { grid-template-columns: var(--axis) repeat(var(--cols), minmax(8.4rem, 1fr)); min-width: calc(var(--axis) + var(--cols) * 8.4rem); }
 }
@@ -2672,6 +2729,17 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
     .cal-block { padding: 0.15rem 0.35rem; font-size: 0.66rem; border-radius: 6px; gap: 0; }
     .cal-block strong { font-size: 0.72rem; -webkit-line-clamp: 2; }
     .cal-block .cb-time { font-size: 0.6rem; }
+    .cal-group { padding: 2px; }
+    .cg-row { padding: 1px 2px; gap: 4px; }
+    .cg-row + .cg-row { padding-top: 2px; }
+    .cg-main strong { font-size: 0.66rem; }
+    .cg-meta { font-size: 0.58rem; }
+    .cg-time { font-size: 0.56rem; }
+    .cg-dot { width: 5px; height: 5px; margin-top: 4px; }
+    .cal-group.is-dense .cg-row { padding: 0 2px; }
+    .cal-group.is-dense .cg-main strong { font-size: 0.58rem; }
+    .cal-group.is-dense .cg-time { font-size: 0.52rem; }
+    .cal-group.is-dense .cg-dot { width: 4px; height: 4px; margin-top: 3px; }
     .cal-block.is-hour { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0.3rem; }
     .cal-block.is-hour .cb-meta { flex-basis: 100%; }
     .cal-block.is-hour .cb-teacher { display: none; }

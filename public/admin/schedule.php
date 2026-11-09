@@ -304,29 +304,29 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     $calDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     foreach ($entries as $e) { if ($e['day_of_week'] === 'Saturday') { $calDays[] = 'Saturday'; break; } }
 
-    // Classes that overlap (only possible across teachers) sit side by side:
-    // group each day into overlapping clusters, then give every class a lane.
+    // Classes that start at the same minute are one wide block: no class is
+    // ever squeezed into a half-width lane. A class that starts later but
+    // overlaps (a make-up class) gets its own full-width block on top.
     $byDay = array_fill_keys($calDays, []);
-    foreach ($entries as $e) { $byDay[$e['day_of_week']][] = $e; }
+    $dayCounts = array_fill_keys($calDays, 0);
+    foreach ($entries as $e) {
+        $byDay[$e['day_of_week']][] = $e;
+        $dayCounts[$e['day_of_week']]++;
+    }
     foreach ($byDay as &$list) {
-        $clusters = []; $cluster = []; $clusterEnd = -1;
-        foreach ($list as $i => $e) {
-            if ($cluster && $toMin($e['start_time']) >= $clusterEnd) { $clusters[] = $cluster; $cluster = []; $clusterEnd = -1; }
-            $cluster[] = $i;
-            $clusterEnd = max($clusterEnd, $toMin($e['end_time']));
-        }
-        if ($cluster) $clusters[] = $cluster;
-        foreach ($clusters as $cl) {
-            $laneEnds = [];
-            foreach ($cl as $i) {
-                $start = $toMin($list[$i]['start_time']);
-                $lane = count($laneEnds);
-                foreach ($laneEnds as $l => $end) { if ($end <= $start) { $lane = $l; break; } }
-                $laneEnds[$lane] = $toMin($list[$i]['end_time']);
-                $list[$i]['_lane'] = $lane;
+        $groups = [];
+        foreach ($list as $e) {
+            $start = $toMin($e['start_time']);
+            $end = $toMin($e['end_time']);
+            $last = count($groups) - 1;
+            if ($last >= 0 && $groups[$last]['start'] === $start) {
+                $groups[$last]['end'] = max($groups[$last]['end'], $end);
+                $groups[$last]['items'][] = $e;
+            } else {
+                $groups[] = ['start' => $start, 'end' => $end, 'items' => [$e]];
             }
-            foreach ($cl as $i) { $list[$i]['_lanes'] = count($laneEnds); }
         }
+        $list = $groups;
     }
     unset($list);
 
@@ -335,7 +335,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     $hueFor = fn(int $subjectId): int => $hues[$subjectId % count($hues)];
 
     // "Grade 12 - HUMSS" -> "G12 HUMSS": short enough to stay readable
-    // inside a half-lane block when two classes share the same hour.
+    // when two classes share one slot in the week.
     $shortSection = function (string $name, string $grade): string {
         $num = preg_replace('/\D/', '', $grade);
         $rest = trim(preg_replace('/^Grade\s*\d+\s*[-–—]?\s*/i', '', $name));
@@ -411,7 +411,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                 <?php foreach ($calDays as $d): ?>
                     <div class="cal-dayhead <?= $d === $todayName ? 'is-today' : '' ?>">
                         <?= $d ?>
-                        <span><?= count($byDay[$d]) ?> <?= count($byDay[$d]) === 1 ? 'class' : 'classes' ?></span>
+                        <span><?= $dayCounts[$d] ?> <?= $dayCounts[$d] === 1 ? 'class' : 'classes' ?></span>
                     </div>
                 <?php endforeach; ?>
 
@@ -425,21 +425,52 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                         <?php if ($d === $todayName && $nowMin > $winStart && $nowMin < $winEnd): ?>
                             <div class="cal-now no-print" style="--top: <?= round(($nowMin - $winStart) / 60, 4) ?>;" aria-hidden="true"></div>
                         <?php endif; ?>
-                        <?php foreach ($byDay[$d] as $e):
-                            $startM = $toMin($e['start_time']); $endM = $toMin($e['end_time']);
+                        <?php foreach ($byDay[$d] as $group):
+                            $items = $group['items'];
+                            $startM = $group['start'];
+                            $endM = $group['end'];
+                            $lenM = $endM - $startM;
+                            $multi = count($items) > 1;
+                            // Two short lines fit a 1-hour card; anything tighter
+                            // drops the meta line so no row is ever clipped.
+                            $dense = $multi && (count($items) >= 3 || $lenM <= 45);
+                            $e = $items[0];
                             $teacherName = $e['teacher_first'] . ' ' . $e['teacher_last'];
                             $timeRange = $shortRange($e['start_time'], $e['end_time']);
                             $tip = $e['subject_name'] . ' · ' . $e['section_name'] . ' · ' . $timeRange . ($e['room'] ? ' · ' . $e['room'] : '') . ' · ' . $teacherName;
                         ?>
-                            <a class="cal-block <?= $endM - $startM <= 45 ? 'is-short' : '' ?> <?= $endM - $startM <= 60 ? 'is-hour' : '' ?>"
+                            <?php if (!$multi): ?>
+                            <a class="cal-block <?= $lenM <= 45 ? 'is-short' : '' ?> <?= $lenM <= 60 ? 'is-hour' : '' ?>"
                                href="/admin/schedule.php?action=edit&id=<?= (int)$e['id'] ?>"
                                title="<?= h($tip) ?> — click to edit"
-                               style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round(($endM - $startM) / 60, 4) ?>; --lane: <?= (int)$e['_lane'] ?>; --lanes: <?= (int)$e['_lanes'] ?>; --h: <?= $hueFor((int)$e['subject_id']) ?>;">
+                               style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round($lenM / 60, 4) ?>; --h: <?= $hueFor((int)$e['subject_id']) ?>;">
                                 <span class="cb-time"><?= h($timeRange) ?></span>
                                 <strong><?= h($e['subject_name']) ?></strong>
                                 <span class="cb-meta"><?= h($shortSection($e['section_name'], $e['grade_level'])) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?></span>
                                 <?php if (!$teacherFilter): ?><span class="cb-meta cb-teacher"><?= h($teacherName) ?></span><?php endif; ?>
                             </a>
+                            <?php else: ?>
+                            <div class="cal-block cal-group <?= $dense ? 'is-dense' : '' ?>"
+                                 style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round($lenM / 60, 4) ?>;">
+                                <?php foreach ($items as $e):
+                                    $rowRange = $shortRange($e['start_time'], $e['end_time']);
+                                    $rowTeacher = $e['teacher_first'] . ' ' . $e['teacher_last'];
+                                    $rowTip = $e['subject_name'] . ' · ' . $e['section_name'] . ' · ' . $rowRange . ($e['room'] ? ' · ' . $e['room'] : '') . ' · ' . $rowTeacher;
+                                ?>
+                                    <a class="cg-row" href="/admin/schedule.php?action=edit&id=<?= (int)$e['id'] ?>"
+                                       title="<?= h($rowTip) ?> — click to edit">
+                                        <span class="cg-dot" style="--h: <?= $hueFor((int)$e['subject_id']) ?>;" aria-hidden="true"></span>
+                                        <span class="cg-main">
+                                            <span class="cg-line">
+                                                <strong><?= h($e['subject_name']) ?></strong>
+                                                <span class="cg-time"><?= h($rowRange) ?></span>
+                                            </span>
+                                            <span class="cg-meta"><?= h($shortSection($e['section_name'], $e['grade_level'])) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?><?= $teacherFilter ? '' : ' · ' . h($rowTeacher) ?></span>
+                                        </span>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </div>
                 <?php endforeach; ?>
