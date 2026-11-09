@@ -2559,11 +2559,11 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
 .cal-empty { margin: 0; padding: 0.9rem 1.25rem 0; color: var(--text-muted); font-size: 0.88rem; }
 .cal-scroll { overflow-x: auto; }
 .cal {
-    --hour: 4.6rem;
+    --hour: 5.4rem;
     --axis: 4.4rem;
     display: grid;
-    grid-template-columns: var(--axis) repeat(var(--cols), minmax(9.5rem, 1fr));
-    min-width: calc(var(--axis) + var(--cols) * 9.5rem);
+    grid-template-columns: var(--axis) repeat(var(--cols), minmax(10.5rem, 1fr));
+    min-width: calc(var(--axis) + var(--cols) * 10.5rem);
     padding: 0 0.75rem 0.9rem 0;
 }
 .cal-corner, .cal-dayhead {
@@ -2614,29 +2614,39 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
     height: calc(var(--len) * var(--hour) - 4px);
     left: calc(var(--lane) / var(--lanes) * 100% + 4px);
     width: calc(100% / var(--lanes) - 8px);
-    display: flex; flex-direction: column; gap: 0.08rem;
-    padding: 0.4rem 0.55rem;
+    display: flex; flex-direction: column; gap: 0.1rem;
+    padding: 0.32rem 0.5rem;
     border-radius: 12px;
     border: 1px solid hsl(var(--h) 55% 86%);
     border-left: 4px solid hsl(var(--h) 62% 44%);
     background: hsl(var(--h) 80% 96.5%);
     color: hsl(var(--h) 45% 22%);
     font-size: 0.76rem;
-    line-height: 1.25;
+    line-height: 1.2;
     overflow: hidden;
     text-decoration: none;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .cal-block:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(40, 20, 10, 0.14); z-index: 2; color: hsl(var(--h) 45% 22%); }
 .cal-block:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; z-index: 2; }
-.cal-block strong { font-size: 0.86rem; font-weight: 800; letter-spacing: -0.01em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal-block .cb-time { font-size: 0.7rem; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0.8; }
-.cal-block .cb-meta { opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Subject is the point of the block: wrap it on two lines instead of
+   chopping it ("Araling Panli…"). Everything else yields space to it. */
+.cal-block strong {
+    font-size: 0.84rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.16;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; overflow-wrap: anywhere;
+}
+.cal-block .cb-time { font-size: 0.68rem; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0.8; white-space: nowrap; }
+.cal-block .cb-meta { font-size: 0.7rem; opacity: 0.85; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .cal-block .cb-teacher { font-weight: 600; }
+/* One-hour blocks: drop the teacher line (it stays in the tooltip) so the
+   subject and section get the room to breathe. */
+.cal-block.is-hour .cb-teacher { display: none; }
 .cal-block.is-short { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0.4rem; padding-block: 0.25rem; }
+.cal-block.is-short strong { display: block; -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; }
 .cal-block.is-short .cb-meta { display: none; }
 @media (max-width: 1400px) {
-    .cal { grid-template-columns: var(--axis) repeat(var(--cols), minmax(7.4rem, 1fr)); min-width: calc(var(--axis) + var(--cols) * 7.4rem); }
+    .cal { grid-template-columns: var(--axis) repeat(var(--cols), minmax(8.4rem, 1fr)); min-width: calc(var(--axis) + var(--cols) * 8.4rem); }
 }
 [data-theme="dark"] .cal-block {
     background: hsl(var(--h) 32% 17% / 0.92);
@@ -2653,14 +2663,14 @@ a.summary-card:hover { border-color: var(--primary); transform: translateY(-1px)
     .page-header::before { display: none; }
     .cal-card { border: 1px solid #999 !important; break-inside: auto; }
     .cal-scroll { overflow: visible; }
-    .cal { --hour: 2.85rem; min-width: 0; padding: 0; grid-template-columns: 3.4rem repeat(var(--cols), 1fr); }
+    .cal { --hour: 3.05rem; min-width: 0; padding: 0; grid-template-columns: 3.4rem repeat(var(--cols), 1fr); }
     .cal-block { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: none; transform: none; }
     .cal-col {
         -webkit-print-color-adjust: exact; print-color-adjust: exact;
         background-image: repeating-linear-gradient(to bottom, #d8d2ca 0 1px, transparent 1px var(--hour));
     }
     .cal-block { padding: 0.15rem 0.35rem; font-size: 0.66rem; border-radius: 6px; gap: 0; }
-    .cal-block strong { font-size: 0.74rem; }
+    .cal-block strong { font-size: 0.72rem; -webkit-line-clamp: 2; }
     .cal-block .cb-time { font-size: 0.6rem; }
     .cal-block.is-hour { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0.3rem; }
     .cal-block.is-hour .cb-meta { flex-basis: 100%; }

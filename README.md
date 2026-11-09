@@ -2,11 +2,17 @@
 
 **Smart Class Presence Log-in System** — QR-code based student attendance tracking for **Monico Rarama National High School**, Academic Year 2026–2027.
 
-**Runs on your own PC:** install XAMPP (PHP + MySQL), then double-click **`start.bat`** — first run prepares the database itself and opens http://127.0.0.1:8000. Logins are below.
+**Runs on your own PC:** install XAMPP (PHP + MySQL), then double-click **`start.bat`** — it starts XAMPP's MySQL by itself (Apache is not needed), prepares the database on first run and opens http://127.0.0.1:8000. Logins are below.
 
 > **Updates:** download the latest copy of this repo and run `start.bat` again. Your students, teachers and attendance stay in MySQL — updating the files never deletes them.
 >
 > (Older web demo: https://scpls.xo.je — 2026-10-14 build. The school now runs it locally.)
+
+## November 2026 — one double-click, readable schedule (2026-11-09)
+
+- **`start.bat` starts XAMPP's MySQL by itself** when it is not running (XAMPP on `C:`, `D:` or `E:`, or a MySQL/MariaDB service), waits for it, then continues. Apache is not needed — the site runs on PHP's built-in server. The error screen now explains what to check if MySQL still refuses to start.
+- **`scan.bat` starts everything too** — on a kiosk PC it starts MySQL + the system (first-run setup included), waits, then opens the QR scanner directly. It no longer asks you to run `start.bat` first, and it does not open an extra dashboard tab.
+- **Teacher Schedule readability** — subject names wrap on two lines instead of being cut ("Araling Panli…"), class times read short (`8–9 AM`), sections read `G12 HUMSS · RM 102`, and the teacher line is kept for long blocks while 1-hour blocks show it in the tooltip. Hour rows are taller and day columns wider.
 
 ## November 2026 — separate QR Scanner (2026-11-05)
 

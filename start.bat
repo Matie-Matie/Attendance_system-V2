@@ -3,8 +3,10 @@ rem ============================================================
 rem  SCPLS v2 - Smart Class Presence Log-in System
 rem  Monico Rarama National High School
 rem  Double-click to start. No tech skills needed.
-rem  1. Prepares the database on first run (one-time, ~1 minute)
-rem  2. Opens the system in your browser automatically
+rem  1. Starts XAMPP's MySQL by itself when it is not running
+rem     (Apache is NOT needed - PHP's built-in server runs the site)
+rem  2. Prepares the database on first run (one-time, ~1 minute)
+rem  3. Opens the system in your browser automatically
 rem  Keep this window open while using the system.
 rem  To stop: press CTRL+C in this window, then close it.
 rem ============================================================
@@ -118,20 +120,72 @@ rem ---------- MySQL must be running (checked on EVERY start) ----------
 :check_mysql_up
 if exist "%LOG%" del "%LOG%" >nul 2>nul
 %MYSQL% -h127.0.0.1 -uroot -e "SELECT 1" >nul 2>"%LOG%"
-if errorlevel 1 goto mysql_down
+if errorlevel 1 goto try_start_mysql
 goto check_running
+
+rem ---------- Not running: start XAMPP's MySQL for the teacher ----------
+rem  One double-click is the whole promise of this file, so never send the
+rem  teacher to the XAMPP Control Panel for the normal case. Apache is not
+rem  needed: the site runs on PHP's own server below.
+rem  AUTOSTART keeps this bounded - after one attempt a real failure falls
+rem  through to the error screen instead of looping forever.
+:try_start_mysql
+if "%AUTOSTART%"=="1" goto mysql_down
+set AUTOSTART=1
+echo.
+echo  MySQL is not running - starting XAMPP's MySQL automatically...
+call :launch_xampp_mysql
+set WAITED=0
+:mysql_wait
+timeout /t 2 /nobreak >nul
+%MYSQL% -h127.0.0.1 -uroot -e "SELECT 1" >nul 2>"%LOG%"
+if not errorlevel 1 goto check_mysql
+set /a WAITED+=2
+if %WAITED% LSS 45 goto mysql_wait
+rem  Still nothing: look once more with fresh eyes (a teacher's XAMPP may
+rem  be configured on port 3307 instead of 3306).
+goto check_mysql
+
+:launch_xampp_mysql
+rem  Order: the XAMPP that owns the detected server folder, a standard
+rem  C:/D:/E:\xampp install, then a MySQL/MariaDB Windows service.
+set "XAMPPDIR="
+if defined SRVDIR if exist "%SRVDIR%..\..\mysql\bin\mysqld.exe" for %%I in ("%SRVDIR%..\..") do set "XAMPPDIR=%%~fI"
+for %%D in (C D E) do if not defined XAMPPDIR if exist "%%D:\xampp\mysql\bin\mysqld.exe" set "XAMPPDIR=%%D:\xampp"
+if defined XAMPPDIR goto launch_xampp_mysqld
+net start mysql >nul 2>nul
+if not errorlevel 1 exit /b 0
+net start mariadb >nul 2>nul
+exit /b 0
+
+:launch_xampp_mysqld
+echo  Found XAMPP at %XAMPPDIR%
+rem  Run from the XAMPP folder, exactly like XAMPP's own mysql_start.bat.
+rem  No parenthesised blocks here: a XAMPP path like "Program Files (x86)"
+rem  would close the block early and break the start line.
+set "XAMPPINI=%XAMPPDIR%\mysql\bin\my.ini"
+if not exist "%XAMPPINI%" set "XAMPPINI="
+pushd "%XAMPPDIR%"
+if defined XAMPPINI start "XAMPP MySQL" /min "%XAMPPDIR%\mysql\bin\mysqld.exe" --defaults-file="%XAMPPINI%" --standalone --console
+if not defined XAMPPINI start "XAMPP MySQL" /min "%XAMPPDIR%\mysql\bin\mysqld.exe" --standalone --console
+popd
+exit /b 0
 
 :mysql_down
 echo.
 findstr /c:"1045" "%LOG%" >nul 2>nul
 if not errorlevel 1 goto mysql_password
 echo  [ERROR] Could not connect to MySQL on port %DBPORT%.
+echo  SCPLS v2 already tried to start XAMPP's MySQL by itself, but it did
+echo  not come up. Apache is not needed - only MySQL.
 echo  ---- MySQL said: ----
 if exist "%LOG%" type "%LOG%"
 echo  ---------------------
 echo  1. Open XAMPP Control Panel
-echo  2. Press Start on MySQL (Apache is not needed)
-echo  3. Wait until MySQL turns green, then double-click this file again
+echo  2. Press Start on MySQL
+echo  3. If MySQL shows a red error, read it: the database files may be
+echo     locked by another MySQL, or the XAMPP folder was moved
+echo  4. Double-click this file again
 echo  If it still fails, take a photo of this window and send it to Mat.
 echo.
 pause
@@ -157,7 +211,7 @@ echo  SCPLS v2 already seems to be running (port %PORT% is in use).
 echo  Opening it in your browser. Use the OTHER black window that is
 echo  already open - you can close this one.
 echo.
-start "" "http://127.0.0.1:%PORT%"
+if not defined SCPLS_NO_BROWSER start "" "http://127.0.0.1:%PORT%"
 timeout /t 5 /nobreak >nul
 exit /b 0
 
@@ -275,7 +329,7 @@ echo   To stop: press CTRL+C here, then close the window.
 echo  ============================================================
 echo.
 timeout /t 3 /nobreak >nul
-start "" "http://127.0.0.1:%PORT%"
+if not defined SCPLS_NO_BROWSER start "" "http://127.0.0.1:%PORT%"
 call %PHP% -S 127.0.0.1:%PORT% -t public
 echo.
 echo  The system has stopped. You may close this window.

@@ -334,15 +334,24 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     $hues = [352, 212, 148, 32, 268, 186, 12, 300];
     $hueFor = fn(int $subjectId): int => $hues[$subjectId % count($hues)];
 
+    // "Grade 12 - HUMSS" -> "G12 HUMSS": short enough to stay readable
+    // inside a half-lane block when two classes share the same hour.
+    $shortSection = function (string $name, string $grade): string {
+        $num = preg_replace('/\D/', '', $grade);
+        $rest = trim(preg_replace('/^Grade\s*\d+\s*[-–—]?\s*/i', '', $name));
+        return $num !== '' ? 'G' . $num . ' ' . $rest : $name;
+    };
+
     $todayName = date('l');
     $nowMin = $toMin(date('H:i'));
     $hourLabel = fn(int $m): string => date('g A', mktime(intdiv($m, 60), 0));
-    // "8:00–9:00 AM" (one AM/PM when both ends share it) so narrow lanes don't wrap.
+    // "8–9 AM" (no ":00") so narrow lanes keep the time on one line.
     $shortRange = function (string $a, string $b): string {
         $ta = strtotime($a); $tb = strtotime($b);
+        $fmt = fn(int $ts): string => date('i', $ts) === '00' ? date('g', $ts) : date('g:i', $ts);
         return date('A', $ta) === date('A', $tb)
-            ? date('g:i', $ta) . '–' . date('g:i A', $tb)
-            : date('g:i A', $ta) . '–' . date('g:i A', $tb);
+            ? $fmt($ta) . '–' . $fmt($tb) . ' ' . date('A', $tb)
+            : $fmt($ta) . ' ' . date('A', $ta) . '–' . $fmt($tb) . ' ' . date('A', $tb);
     };
 ?>
 
@@ -428,7 +437,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                style="--top: <?= round(($startM - $winStart) / 60, 4) ?>; --len: <?= round(($endM - $startM) / 60, 4) ?>; --lane: <?= (int)$e['_lane'] ?>; --lanes: <?= (int)$e['_lanes'] ?>; --h: <?= $hueFor((int)$e['subject_id']) ?>;">
                                 <span class="cb-time"><?= h($timeRange) ?></span>
                                 <strong><?= h($e['subject_name']) ?></strong>
-                                <span class="cb-meta"><?= h($e['section_name']) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?></span>
+                                <span class="cb-meta"><?= h($shortSection($e['section_name'], $e['grade_level'])) ?><?= $e['room'] ? ' · ' . h($e['room']) : '' ?></span>
                                 <?php if (!$teacherFilter): ?><span class="cb-meta cb-teacher"><?= h($teacherName) ?></span><?php endif; ?>
                             </a>
                         <?php endforeach; ?>
