@@ -308,26 +308,114 @@ function notify_ensure_schema(): void
         return;
     }
     try {
-        if ((int) setting_get('schema_version', '1') >= 3) {
-            return;
-        }
-        // v3: per-class 'cutting' alerts. Each step is safe to re-run.
-        db()->exec("ALTER TABLE sms_logs
-            MODIFY type ENUM('morning_in','afternoon_out','absent','cutting') NOT NULL DEFAULT 'morning_in'");
-        if (!db()->query("SHOW COLUMNS FROM sms_logs LIKE 'dedup_key'")->fetch()) {
-            db()->exec("ALTER TABLE sms_logs ADD COLUMN dedup_key INT NOT NULL DEFAULT 0 AFTER channel");
-        }
-        $idx = db()->query("SHOW INDEX FROM sms_logs WHERE Key_name = 'uq_notif_student_type_day_channel' AND Column_name = 'dedup_key'")->fetch();
-        if (!$idx) {
+        $version = (int) setting_get('schema_version', '1');
+
+        if ($version < 3) {
+            // v3: per-class 'cutting' alerts. Each step is safe to re-run.
             db()->exec("ALTER TABLE sms_logs
-                DROP INDEX uq_notif_student_type_day_channel,
-                ADD UNIQUE KEY uq_notif_student_type_day_channel (student_id, type, sms_date, channel, dedup_key)");
+                MODIFY type ENUM('morning_in','afternoon_out','absent','cutting') NOT NULL DEFAULT 'morning_in'");
+            if (!db()->query("SHOW COLUMNS FROM sms_logs LIKE 'dedup_key'")->fetch()) {
+                db()->exec("ALTER TABLE sms_logs ADD COLUMN dedup_key INT NOT NULL DEFAULT 0 AFTER channel");
+            }
+            $idx = db()->query("SHOW INDEX FROM sms_logs WHERE Key_name = 'uq_notif_student_type_day_channel' AND Column_name = 'dedup_key'")->fetch();
+            if (!$idx) {
+                db()->exec("ALTER TABLE sms_logs
+                    DROP INDEX uq_notif_student_type_day_channel,
+                    ADD UNIQUE KEY uq_notif_student_type_day_channel (student_id, type, sms_date, channel, dedup_key)");
+            }
+            setting_set('schema_version', '3');
+            $version = 3;
+            error_log('SCPLS schema upgraded to v3 (cutting alerts)');
         }
-        setting_set('schema_version', '3');
-        error_log('SCPLS schema upgraded to v3 (cutting alerts)');
+
+        if ($version < 4) {
+            // v4: remove the unused HUMSS sections the school asked to clear.
+            // Runs once by itself on the next launch — no manual step.
+            scpls_cleanup_unused_sections();
+            setting_set('schema_version', '4');
+            error_log('SCPLS schema upgraded to v4 (unused HUMSS sections)');
+        }
     } catch (\Throwable $e) {
         error_log('SCPLS notify_ensure_schema: ' . $e->getMessage());
     }
+}
+
+/**
+ * One-time cleanup requested by the school (Nov 2026):
+ * Grade 11 Respect/Empathy, Grade 12 Honesty/Obedience.
+ *
+ * A section is removed only when nothing points at it — no students and no
+ * class in the schedule. Anything still in use is kept untouched and written
+ * to storage/logs/section-cleanup.log so the office can see why it stayed.
+ */
+function scpls_cleanup_unused_sections(): void
+{
+    $keywords = ['Respect', 'Empathy', 'Honesty', 'Obedience'];
+
+    $rows = db()->query(
+        "SELECT id, name
+           FROM sections
+          WHERE grade_level IN ('Grade 11', 'Grade 12')
+            AND (name LIKE '%HUMSS%' OR track_strand = 'HUMSS')"
+    )->fetchAll();
+
+    $countStudents = db()->prepare("SELECT COUNT(*) FROM students WHERE section_id = ?");
+    $countSched    = db()->prepare("SELECT COUNT(*) FROM schedule_entries WHERE section_id = ?");
+    $delete        = db()->prepare(
+        "DELETE s FROM sections s
+          WHERE s.id = ?
+            AND NOT EXISTS (SELECT 1 FROM students st WHERE st.section_id = s.id)
+            AND NOT EXISTS (SELECT 1 FROM schedule_entries se WHERE se.section_id = s.id)"
+    );
+
+    $removed = [];
+    $kept    = [];
+
+    foreach ($rows as $row) {
+        $match = false;
+        foreach ($keywords as $kw) {
+            if (stripos($row['name'], $kw) !== false) {
+                $match = true;
+                break;
+            }
+        }
+        if (!$match) {
+            continue;
+        }
+
+        $countStudents->execute([$row['id']]);
+        $students = (int) $countStudents->fetchColumn();
+        $countSched->execute([$row['id']]);
+        $schedules = (int) $countSched->fetchColumn();
+
+        if ($students === 0 && $schedules === 0) {
+            $delete->execute([$row['id']]);
+            if ($delete->rowCount() > 0) {
+                $removed[] = $row['name'];
+            }
+        } else {
+            $kept[] = $row['name'] . sprintf(
+                ' (%d student%s, %d class%s)',
+                $students,
+                $students === 1 ? '' : 's',
+                $schedules,
+                $schedules === 1 ? '' : 'es'
+            );
+        }
+    }
+
+    if (!$removed && !$kept) {
+        return;
+    }
+
+    $file = BASE_PATH . '/storage/logs/section-cleanup.log';
+    @mkdir(dirname($file), 0775, true);
+    @file_put_contents(
+        $file,
+        date('c') . ' removed: ' . ($removed ? implode('; ', $removed) : 'none')
+            . ' | kept: ' . ($kept ? implode('; ', $kept) : 'none') . PHP_EOL,
+        FILE_APPEND
+    );
 }
 
 function setting_get(string $key, ?string $default = null): ?string
