@@ -109,6 +109,21 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
         ];
     }
     $isEdit = $action === 'edit';
+
+    // What still points at this section — shown beside the delete button so
+    // the office knows why it can't go yet.
+    $linkedStudents = 0;
+    $linkedSchedules = 0;
+    if ($isEdit) {
+        $countStudents = db()->prepare("SELECT COUNT(*) FROM students WHERE section_id = ?");
+        $countStudents->execute([$id]);
+        $linkedStudents = (int) $countStudents->fetchColumn();
+
+        $countSchedules = db()->prepare("SELECT COUNT(*) FROM schedule_entries WHERE section_id = ?");
+        $countSchedules->execute([$id]);
+        $linkedSchedules = (int) $countSchedules->fetchColumn();
+    }
+
     $gradeLevels = ['Grade 11', 'Grade 12'];
     $trackOptions = ['STEM', 'ABM', 'HUMSS', 'GAS', 'TVL', 'Sports', 'Arts & Design'];
 ?>
@@ -158,6 +173,28 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                     <a href="/admin/sections.php" class="btn btn-outline">Cancel</a>
                 </div>
             </form>
+
+            <?php if ($isEdit): ?>
+                <div style="border-top:1px solid var(--border-color); margin-top:1.5rem; padding-top:1.25rem;">
+                    <p class="text-sm text-muted" style="margin:0 0 0.75rem;">
+                        <?php if ($linkedStudents > 0): ?>
+                            This section still has <strong><?= $linkedStudents ?></strong> student<?= $linkedStudents === 1 ? '' : 's' ?>
+                            assigned, so it can't be deleted yet. Move them to another section first.
+                        <?php elseif ($linkedSchedules > 0): ?>
+                            This section still has <strong><?= $linkedSchedules ?></strong> class<?= $linkedSchedules === 1 ? '' : 'es' ?>
+                            in the schedule, so it can't be deleted yet. Remove them from Teacher Schedule first.
+                        <?php else: ?>
+                            Deleting a section can't be undone.
+                        <?php endif; ?>
+                    </p>
+                    <form method="POST" onsubmit="return confirm('Delete this section? This cannot be undone.');">
+                        <input type="hidden" name="submit_action" value="delete">
+                        <input type="hidden" name="id" value="<?= (int) $id ?>">
+                        <?= csrf_field() ?>
+                        <button type="submit" class="btn btn-sm btn-danger">Delete this section</button>
+                    </form>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 <?php
@@ -172,10 +209,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     if ($search) { $where = "WHERE name LIKE ? OR grade_level LIKE ? OR track_strand LIKE ?"; $params = ["%$search%", "%$search%", "%$search%"]; }
 
     $total = db()->prepare("SELECT COUNT(*) FROM sections $where"); $total->execute($params); $total = $total->fetchColumn();
-    $stmt = db()->prepare("SELECT s.*,
-            (SELECT COUNT(*) FROM students WHERE section_id = s.id AND status = 1) as student_count,
-            (SELECT COUNT(*) FROM schedule_entries se WHERE se.section_id = s.id) as schedule_count
-        FROM sections s $where ORDER BY s.grade_level, s.name ASC LIMIT ? OFFSET ?");
+    $stmt = db()->prepare("SELECT s.*, (SELECT COUNT(*) FROM students WHERE section_id = s.id AND status = 1) as student_count FROM sections s $where ORDER BY s.grade_level, s.name ASC LIMIT ? OFFSET ?");
     $allParams = array_merge($params, [$perPage, $offset]);
     $stmt->execute($allParams);
     $sections = $stmt->fetchAll();
@@ -228,19 +262,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                 <td><?= h($s['track_strand']) ? '<span class="badge badge-warning">'.h($s['track_strand']).'</span>' : '<span class="text-muted">—</span>' ?></td>
                                 <td><span class="badge <?= (int)$s['student_count'] > 0 ? 'badge-success' : 'badge-danger' ?>"><?= (int)$s['student_count'] ?> student<?= (int)$s['student_count']===1?'':'s' ?></span></td>
                                 <td><span class="badge <?= $s['status'] ? 'badge-success' : 'badge-danger' ?>"><?= $s['status'] ? 'Active' : 'Inactive' ?></span></td>
-                                <?php $inUse = ((int) $s['student_count'] > 0 || (int) $s['schedule_count'] > 0); ?>
-                                <td style="text-align:right;">
-                                    <div style="display:inline-flex; flex-direction:column; gap:0.35rem; width:82px;">
-                                        <a href="/admin/sections.php?action=edit&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline" style="width:100%;">Edit</a>
-                                        <form method="POST" style="margin:0;"
-                                            <?= $inUse ? 'title="Move its students and classes first"' : 'onsubmit="return confirm(\'Delete this section? This cannot be undone.\')"' ?>>
-                                            <input type="hidden" name="submit_action" value="delete">
-                                            <input type="hidden" name="id" value="<?= (int) $s['id'] ?>">
-                                            <?= csrf_field() ?>
-                                            <button type="submit" class="btn btn-sm btn-danger" style="width:100%;">Delete</button>
-                                        </form>
-                                    </div>
-                                </td>
+                                <td style="text-align:right;"><a href="/admin/sections.php?action=edit&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline">Edit</a></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
