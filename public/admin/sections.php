@@ -15,10 +15,55 @@ $errors = [];
 
 // Handle form
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $submitAction = $_POST['submit_action'] ?? '';
+
+    // Delete is its own path. A section is the link to its students, its
+    // schedule and all attendance history — so it can only go when nothing
+    // points at it. Students and classes block it instead of being orphaned.
+    if ($submitAction === 'delete') {
+        $deleteId = (int) ($_POST['id'] ?? 0);
+        $found = null;
+        if ($deleteId > 0) {
+            $stmt = db()->prepare("SELECT id, name FROM sections WHERE id = ?");
+            $stmt->execute([$deleteId]);
+            $found = $stmt->fetch() ?: null;
+        }
+
+        if (!$found) {
+            $_SESSION['_flash']['error'] = 'That section no longer exists.';
+        } else {
+            $countStudents = db()->prepare("SELECT COUNT(*) FROM students WHERE section_id = ?");
+            $countStudents->execute([$deleteId]);
+            $students = (int) $countStudents->fetchColumn();
+
+            $countSchedules = db()->prepare("SELECT COUNT(*) FROM schedule_entries WHERE section_id = ?");
+            $countSchedules->execute([$deleteId]);
+            $schedules = (int) $countSchedules->fetchColumn();
+
+            if ($students > 0) {
+                $_SESSION['_flash']['error'] = "Cannot delete '{$found['name']}' — {$students} student"
+                    . ($students === 1 ? ' is' : 's are') . ' still assigned. Move them to another section first.';
+            } elseif ($schedules > 0) {
+                $_SESSION['_flash']['error'] = "Cannot delete '{$found['name']}' — {$schedules} class"
+                    . ($schedules === 1 ? ' is' : 'es are') . ' still in the schedule. Remove them from Teacher Schedule first.';
+            } else {
+                try {
+                    db()->prepare("DELETE FROM sections WHERE id = ?")->execute([$deleteId]);
+                    log_audit('delete', 'section', $deleteId, ['name' => $found['name']]);
+                    $_SESSION['_flash']['success'] = "Section '{$found['name']}' deleted.";
+                } catch (\Throwable $e) {
+                    error_log('SCPLS section delete: ' . $e->getMessage());
+                    $_SESSION['_flash']['error'] = 'Could not delete that section — it may still be linked to records.';
+                }
+            }
+        }
+
+        redirect('/admin/sections.php');
+    }
+
     $name = trim($_POST['name'] ?? '');
     $gradeLevel = trim($_POST['grade_level'] ?? '');
     $trackStrand = trim($_POST['track_strand'] ?? '');
-    $submitAction = $_POST['submit_action'] ?? '';
 
     if (empty($name)) $errors[] = 'Section name is required.';
     if (empty($gradeLevel)) $errors[] = 'Grade level is required.';
@@ -127,7 +172,10 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     if ($search) { $where = "WHERE name LIKE ? OR grade_level LIKE ? OR track_strand LIKE ?"; $params = ["%$search%", "%$search%", "%$search%"]; }
 
     $total = db()->prepare("SELECT COUNT(*) FROM sections $where"); $total->execute($params); $total = $total->fetchColumn();
-    $stmt = db()->prepare("SELECT s.*, (SELECT COUNT(*) FROM students WHERE section_id = s.id AND status = 1) as student_count FROM sections s $where ORDER BY s.grade_level, s.name ASC LIMIT ? OFFSET ?");
+    $stmt = db()->prepare("SELECT s.*,
+            (SELECT COUNT(*) FROM students WHERE section_id = s.id AND status = 1) as student_count,
+            (SELECT COUNT(*) FROM schedule_entries se WHERE se.section_id = s.id) as schedule_count
+        FROM sections s $where ORDER BY s.grade_level, s.name ASC LIMIT ? OFFSET ?");
     $allParams = array_merge($params, [$perPage, $offset]);
     $stmt->execute($allParams);
     $sections = $stmt->fetchAll();
@@ -180,7 +228,17 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                 <td><?= h($s['track_strand']) ? '<span class="badge badge-warning">'.h($s['track_strand']).'</span>' : '<span class="text-muted">—</span>' ?></td>
                                 <td><span class="badge <?= (int)$s['student_count'] > 0 ? 'badge-success' : 'badge-danger' ?>"><?= (int)$s['student_count'] ?> student<?= (int)$s['student_count']===1?'':'s' ?></span></td>
                                 <td><span class="badge <?= $s['status'] ? 'badge-success' : 'badge-danger' ?>"><?= $s['status'] ? 'Active' : 'Inactive' ?></span></td>
-                                <td style="text-align:right;"><a href="/admin/sections.php?action=edit&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline">Edit</a></td>
+                                <?php $inUse = ((int) $s['student_count'] > 0 || (int) $s['schedule_count'] > 0); ?>
+                                <td style="text-align:right; white-space:nowrap;">
+                                    <a href="/admin/sections.php?action=edit&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline">Edit</a>
+                                    <form method="POST" style="display:inline;"
+                                        <?= $inUse ? 'title="Move its students and classes first"' : 'onsubmit="return confirm(\'Delete this section? This cannot be undone.\')"' ?>>
+                                        <input type="hidden" name="submit_action" value="delete">
+                                        <input type="hidden" name="id" value="<?= (int) $s['id'] ?>">
+                                        <?= csrf_field() ?>
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                    </form>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
