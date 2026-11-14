@@ -229,15 +229,17 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                 <td><span class="badge <?= (int)$s['student_count'] > 0 ? 'badge-success' : 'badge-danger' ?>"><?= (int)$s['student_count'] ?> student<?= (int)$s['student_count']===1?'':'s' ?></span></td>
                                 <td><span class="badge <?= $s['status'] ? 'badge-success' : 'badge-danger' ?>"><?= $s['status'] ? 'Active' : 'Inactive' ?></span></td>
                                 <?php $inUse = ((int) $s['student_count'] > 0 || (int) $s['schedule_count'] > 0); ?>
-                                <td style="text-align:right; white-space:nowrap;">
-                                    <a href="/admin/sections.php?action=edit&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline">Edit</a>
-                                    <form method="POST" style="display:inline;"
-                                        <?= $inUse ? 'title="Move its students and classes first"' : 'onsubmit="return confirm(\'Delete this section? This cannot be undone.\')"' ?>>
-                                        <input type="hidden" name="submit_action" value="delete">
-                                        <input type="hidden" name="id" value="<?= (int) $s['id'] ?>">
-                                        <?= csrf_field() ?>
-                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                    </form>
+                                <td style="text-align:right;">
+                                    <div style="display:inline-flex; flex-direction:column; gap:0.35rem; width:82px;">
+                                        <a href="/admin/sections.php?action=edit&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline" style="width:100%;">Edit</a>
+                                        <form method="POST" style="margin:0;"
+                                            <?= $inUse ? 'title="Move its students and classes first"' : 'onsubmit="return confirm(\'Delete this section? This cannot be undone.\')"' ?>>
+                                            <input type="hidden" name="submit_action" value="delete">
+                                            <input type="hidden" name="id" value="<?= (int) $s['id'] ?>">
+                                            <?= csrf_field() ?>
+                                            <button type="submit" class="btn btn-sm btn-danger" style="width:100%;">Delete</button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
