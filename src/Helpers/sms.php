@@ -334,6 +334,17 @@ function notify_ensure_schema(): void
             scpls_cleanup_unused_sections();
             setting_set('schema_version', '4');
             error_log('SCPLS schema upgraded to v4 (unused HUMSS sections)');
+            $version = 4;
+        }
+
+        if ($version < 5) {
+            // v5: the school keeps four homerooms only — Grade 11 Respect and
+            // Empathy, Grade 12 Honesty and Obedience (HUMSS). Every other
+            // Grade 11/12 section left from the first setup goes, as long as
+            // nothing points at it.
+            scpls_remove_extra_sections();
+            setting_set('schema_version', '5');
+            error_log('SCPLS schema upgraded to v5 (only the four HUMSS homerooms)');
         }
     } catch (\Throwable $e) {
         error_log('SCPLS notify_ensure_schema: ' . $e->getMessage());
@@ -418,6 +429,94 @@ function scpls_cleanup_unused_sections(): void
     );
 }
 
+/**
+ * The school runs four homerooms only (Nov 2026): Grade 11 Respect and Empathy,
+ * Grade 12 Honesty and Obedience — all HUMSS. Every other Grade 11/12 section
+ * (the demo STEM/ABM rows, the bare "Grade 11 - HUMSS" placeholders) is removed
+ * as soon as nothing points at it. A section that still has students or classes
+ * is never touched: it is kept, logged, and a one-time notice on the Sections
+ * page tells the office what to move first.
+ */
+function scpls_remove_extra_sections(): void
+{
+    $homerooms = ['Respect', 'Empathy', 'Honesty', 'Obedience'];
+
+    $rows = db()->query(
+        "SELECT id, name
+           FROM sections
+          WHERE grade_level IN ('Grade 11', 'Grade 12')
+          ORDER BY grade_level, name"
+    )->fetchAll();
+
+    $countStudents = db()->prepare("SELECT COUNT(*) FROM students WHERE section_id = ?");
+    $countSched    = db()->prepare("SELECT COUNT(*) FROM schedule_entries WHERE section_id = ?");
+    $delete        = db()->prepare(
+        "DELETE s FROM sections s
+          WHERE s.id = ?
+            AND NOT EXISTS (SELECT 1 FROM students st WHERE st.section_id = s.id)
+            AND NOT EXISTS (SELECT 1 FROM schedule_entries se WHERE se.section_id = s.id)"
+    );
+
+    $removed = [];
+    $kept    = [];
+
+    foreach ($rows as $row) {
+        // One of the four homerooms — never a cleanup candidate, whatever the
+        // suffix around it ("Grade 11 - Respect (HUMSS)" matches too).
+        $isHomeroom = false;
+        foreach ($homerooms as $name) {
+            if (stripos($row['name'], $name) !== false) { $isHomeroom = true; break; }
+        }
+        if ($isHomeroom) {
+            continue;
+        }
+
+        $countStudents->execute([$row['id']]);
+        $students = (int) $countStudents->fetchColumn();
+        $countSched->execute([$row['id']]);
+        $schedules = (int) $countSched->fetchColumn();
+
+        if ($students === 0 && $schedules === 0) {
+            $delete->execute([$row['id']]);
+            if ($delete->rowCount() > 0) {
+                $removed[] = $row['name'];
+            }
+        } else {
+            $kept[] = $row['name'] . sprintf(
+                ' (%d student%s, %d class%s)',
+                $students,
+                $students === 1 ? '' : 's',
+                $schedules,
+                $schedules === 1 ? '' : 'es'
+            );
+        }
+    }
+
+    if (!$removed && !$kept) {
+        return;
+    }
+
+    $file = BASE_PATH . '/storage/logs/section-cleanup.log';
+    @mkdir(dirname($file), 0775, true);
+    @file_put_contents(
+        $file,
+        date('c') . ' v5 removed: ' . ($removed ? implode('; ', $removed) : 'none')
+            . ' | kept: ' . ($kept ? implode('; ', $kept) : 'none') . PHP_EOL,
+        FILE_APPEND
+    );
+
+    $parts = [];
+    if ($removed) {
+        $parts[] = 'removed ' . count($removed) . ' unused section' . (count($removed) === 1 ? '' : 's')
+            . ' (' . implode(', ', $removed) . ')';
+    }
+    if ($kept) {
+        $parts[] = 'kept ' . count($kept) . ' still in use (' . implode(', ', $kept) . ')'
+            . ' — move their students and classes first, then delete them here';
+    }
+    setting_set('section_cleanup_notice', 'Section cleanup: ' . implode('. ', $parts) . '.');
+}
+
 function setting_get(string $key, ?string $default = null): ?string
 {
     setting_ensure_table();
@@ -433,6 +532,13 @@ function setting_set(string $key, string $value): void
     $stmt = db()->prepare("INSERT INTO settings (skey, svalue) VALUES (?, ?)
         ON DUPLICATE KEY UPDATE svalue = VALUES(svalue)");
     $stmt->execute([$key, $value]);
+}
+
+function setting_forget(string $key): void
+{
+    setting_ensure_table();
+    $stmt = db()->prepare("DELETE FROM settings WHERE skey = ?");
+    $stmt->execute([$key]);
 }
 
 /* -------------------------------------------------------------------------

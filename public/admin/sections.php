@@ -9,6 +9,11 @@ $slot = '';
 require_once __DIR__ . '/../../bootstrap.php';
 require_role('admin');
 
+// One-time note from the section cleanup that ran on this launch (schema v5).
+// Shown once, then cleared so it doesn't follow the office around.
+$cleanupNotice = setting_get('section_cleanup_notice');
+if ($cleanupNotice !== null) setting_forget('section_cleanup_notice');
+
 $action = $_GET['action'] ?? 'list';
 $id = (int)($_GET['id'] ?? 0);
 $errors = [];
@@ -227,6 +232,10 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
         <p>Grade 11 & 12 homerooms — each tied to a track/strand. Students inherit their section for scheduling and reports.</p>
     </div>
 </div>
+
+<?php if ($cleanupNotice): ?>
+    <div class="alert alert-info fade-in" style="margin-bottom:1rem;"><?= h($cleanupNotice) ?></div>
+<?php endif; ?>
 
 <div class="filter-pillbar">
     <form method="GET" class="fp-search" style="flex:1;">
