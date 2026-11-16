@@ -78,7 +78,7 @@ ob_start();
 <div class="dash-grid">
     <div class="card">
         <div class="card-header"><h3>Enrolled Subjects (<?= count($subjects) ?>)</h3>
-            <a href="/admin/students.php?action=edit&id=<?= (int)$student['id'] ?>" class="btn btn-sm btn-outline">Edit</a>
+            <a href="/admin/students.php?action=edit&id=<?= (int)$student['id'] ?><?= $student['section_id'] ? '&section_id=' . (int)$student['section_id'] : '' ?>" class="btn btn-sm btn-outline">Edit</a>
         </div>
         <div class="card-body">
             <?php if (empty($subjects)): ?>

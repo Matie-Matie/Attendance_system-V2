@@ -13,8 +13,68 @@ $action = $_GET['action'] ?? 'list';
 $id = (int)($_GET['id'] ?? 0);
 $errors = [];
 
+// Where "back to the list" goes. The office usually works inside one section
+// (filtered list → edit a name), so the section filter, search text and page
+// travel with the edit and are restored after saving, cancelling or deleting —
+// you never land back on "All sections" by accident.
+$listParams = [];
+foreach (['search', 'section_id', 'page'] as $key) {
+    $value = trim((string) ($_GET[$key] ?? ''));
+    if ($value !== '' && $value !== '0') $listParams[$key] = $value;
+}
+$listUrl = '/admin/students.php' . ($listParams ? '?' . http_build_query($listParams) : '');
+$listQuery = $listParams ? '&' . http_build_query($listParams) : '';
+
 // Handle form
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $submitAction = $_POST['submit_action'] ?? '';
+
+    // Delete is its own path. Attendance and parent-notification rows point at
+    // a student, so a learner with history can't be removed — reports would
+    // lose them. Which section they were being edited from is kept, too.
+    if ($submitAction === 'delete') {
+        $deleteId = (int) ($_POST['id'] ?? 0);
+        $found = null;
+        if ($deleteId > 0) {
+            $stmt = db()->prepare("SELECT id, student_id, first_name, last_name FROM students WHERE id = ?");
+            $stmt->execute([$deleteId]);
+            $found = $stmt->fetch() ?: null;
+        }
+
+        if (!$found) {
+            $_SESSION['_flash']['error'] = 'That student no longer exists.';
+        } else {
+            $fullName = $found['first_name'] . ' ' . $found['last_name'];
+
+            $countRecords = db()->prepare("SELECT COUNT(*) FROM attendance_records WHERE student_id = ?");
+            $countRecords->execute([$deleteId]);
+            $records = (int) $countRecords->fetchColumn();
+
+            $countNotifs = db()->prepare("SELECT COUNT(*) FROM sms_logs WHERE student_id = ?");
+            $countNotifs->execute([$deleteId]);
+            $notifs = (int) $countNotifs->fetchColumn();
+
+            if ($records > 0) {
+                $_SESSION['_flash']['error'] = "Cannot delete {$fullName} — {$records} attendance record"
+                    . ($records === 1 ? ' is' : 's are') . ' linked. Attendance history is kept for reports.';
+            } elseif ($notifs > 0) {
+                $_SESSION['_flash']['error'] = "Cannot delete {$fullName} — {$notifs} parent notification"
+                    . ($notifs === 1 ? ' is' : 's are') . ' linked to this student.';
+            } else {
+                try {
+                    db()->prepare("DELETE FROM students WHERE id = ?")->execute([$deleteId]);
+                    log_audit('delete', 'student', $deleteId, ['student_id' => $found['student_id'], 'name' => $fullName]);
+                    $_SESSION['_flash']['success'] = "Student {$fullName} deleted.";
+                } catch (\Throwable $e) {
+                    error_log('SCPLS student delete: ' . $e->getMessage());
+                    $_SESSION['_flash']['error'] = 'Could not delete that student — they may still be linked to records.';
+                }
+            }
+        }
+
+        redirect($listUrl);
+    }
+
     $studentId = trim($_POST['student_id'] ?? '');
     $firstName = trim($_POST['first_name'] ?? '');
     $lastName = trim($_POST['last_name'] ?? '');
@@ -23,7 +83,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $parentName = trim($_POST['parent_name'] ?? '');
     $parentContact = trim($_POST['parent_contact'] ?? '');
     $parentEmail = trim($_POST['parent_email'] ?? '');
-    $submitAction = $_POST['submit_action'] ?? '';
 
     if (empty($studentId)) $errors[] = 'Student ID is required.';
     if (empty($firstName)) $errors[] = 'First name is required.';
@@ -47,13 +106,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$studentId, $firstName, $lastName, $gradeLevel, $sectionId ?: null, $parentName ?: null, $parentContact ?: null, $parentEmail ?: null]);
                 log_audit('create', 'student', (int) db()->lastInsertId(), ['student_id' => $studentId, 'name' => "$firstName $lastName"]);
                 $_SESSION['_flash']['success'] = "Student '{$firstName} {$lastName}' created.";
-                redirect('/admin/students.php');
+                redirect($listUrl);
             } elseif ($submitAction === 'edit' && $id > 0) {
                 $stmt = db()->prepare("UPDATE students SET student_id = ?, first_name = ?, last_name = ?, grade_level = ?, section_id = ?, parent_name = ?, parent_contact = ?, parent_email = ? WHERE id = ?");
                 $stmt->execute([$studentId, $firstName, $lastName, $gradeLevel, $sectionId ?: null, $parentName ?: null, $parentContact ?: null, $parentEmail ?: null, $id]);
                 log_audit('update', 'student', $id, ['student_id' => $studentId, 'name' => "$firstName $lastName"]);
                 $_SESSION['_flash']['success'] = 'Student updated.';
-                redirect('/admin/students.php');
+                redirect($listUrl);
             }
         } catch (\Throwable $e) {
             error_log('SCPLS student save: ' . $e->getMessage());
@@ -69,6 +128,10 @@ ob_start();
 
 if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     $student = ['student_id' => '', 'first_name' => '', 'last_name' => '', 'grade_level' => '', 'section_id' => 0, 'parent_name' => '', 'parent_contact' => '', 'parent_email' => ''];
+    // Adding from a section-filtered list starts in that section.
+    if ($action === 'add' && !empty($listParams['section_id'])) {
+        $student['section_id'] = (int) $listParams['section_id'];
+    }
     if ($action === 'edit') {
         $stmt = db()->prepare("SELECT * FROM students WHERE id = ?"); $stmt->execute([$id]); $student = $stmt->fetch();
         if (!$student) { flash('error', 'Student not found.'); redirect('/admin/students.php'); }
@@ -88,9 +151,32 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
     }
     $isEdit = $action === 'edit';
     $gradeLevels = ['Grade 11', 'Grade 12'];
+
+    // Name the list we'll go back to, so "back" is never a surprise.
+    $backToSection = null;
+    if (!empty($listParams['section_id'])) {
+        foreach ($sections as $sec) {
+            if ((int) $sec['id'] === (int) $listParams['section_id']) { $backToSection = $sec['name']; break; }
+        }
+    }
+    $backLabel = $backToSection ? 'Back to ' . $backToSection : 'Back';
+
+    // What still points at this student — shown beside the delete button so the
+    // office knows why it can't go yet.
+    $linkedRecords = 0;
+    $linkedNotifs = 0;
+    if ($isEdit) {
+        $countRecords = db()->prepare("SELECT COUNT(*) FROM attendance_records WHERE student_id = ?");
+        $countRecords->execute([$id]);
+        $linkedRecords = (int) $countRecords->fetchColumn();
+
+        $countNotifs = db()->prepare("SELECT COUNT(*) FROM sms_logs WHERE student_id = ?");
+        $countNotifs->execute([$id]);
+        $linkedNotifs = (int) $countNotifs->fetchColumn();
+    }
 ?>
     <div class="card form-card">
-        <div class="card-header"><h3><?= $isEdit ? 'Edit Student' : 'Add Student' ?></h3><a href="/admin/students.php" class="btn btn-outline btn-sm">Back</a></div>
+        <div class="card-header"><h3><?= $isEdit ? 'Edit Student' : 'Add Student' ?></h3><a href="<?= h($listUrl) ?>" class="btn btn-outline btn-sm"><?= h($backLabel) ?></a></div>
         <div class="card-body">
             <?php if (!empty($errors)): ?>
                 <div class="alert alert-danger fade-in">
@@ -157,9 +243,32 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary"><?= $isEdit ? 'Update Student' : 'Create Student' ?></button>
-                    <a href="/admin/students.php" class="btn btn-outline">Cancel</a>
+                    <a href="<?= h($listUrl) ?>" class="btn btn-outline">Cancel</a>
                 </div>
             </form>
+
+            <?php if ($isEdit): ?>
+                <div style="border-top:1px solid var(--border-color); margin-top:1.5rem; padding-top:1.25rem;">
+                    <p class="text-sm text-muted" style="margin:0 0 0.75rem;">
+                        <?php if ($linkedRecords > 0): ?>
+                            This student has <strong><?= $linkedRecords ?></strong> attendance record<?= $linkedRecords === 1 ? '' : 's' ?>
+                            linked, so they can't be deleted — attendance history is kept for reports.
+                        <?php elseif ($linkedNotifs > 0): ?>
+                            This student has <strong><?= $linkedNotifs ?></strong> parent notification<?= $linkedNotifs === 1 ? '' : 's' ?>
+                            linked, so they can't be deleted.
+                        <?php else: ?>
+                            Deleting a student can't be undone. Use this for a wrong entry or duplicate —
+                            a learner who left should be moved, not deleted, once they have attendance.
+                        <?php endif; ?>
+                    </p>
+                    <form method="POST" onsubmit="return confirm('Delete this student? This cannot be undone.');">
+                        <input type="hidden" name="submit_action" value="delete">
+                        <input type="hidden" name="id" value="<?= (int) $id ?>">
+                        <?= csrf_field() ?>
+                        <button type="submit" class="btn btn-sm btn-danger" <?= ($linkedRecords > 0 || $linkedNotifs > 0) ? 'disabled' : '' ?>>Delete this student</button>
+                    </form>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 <?php
@@ -212,7 +321,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
         <span class="text-xs text-muted nowrap" style="font-variant-numeric: tabular-nums;"><?= $total ?> result<?= $total===1?'':'s' ?></span>
         <div class="fp-divider"></div>
         <a href="/admin/import.php?type=students" class="btn btn-outline btn-sm">Import CSV</a>
-        <a href="/admin/students.php?action=add" class="btn btn-primary btn-sm">+ Add Student</a>
+        <a href="/admin/students.php?action=add<?= $listQuery ?>" class="btn btn-primary btn-sm">+ Add Student</a>
     </div>
 </div>
 
@@ -223,7 +332,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                 <div class="empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></div>
                 <h3>No students found</h3>
                 <p><?= $search ? 'Try a different search or clear filters.' : 'Add your first student to get started.' ?></p>
-                <?php if (!$search): ?><a href="/admin/students.php?action=add" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">+ Add Student</a><?php endif; ?>
+                <?php if (!$search): ?><a href="/admin/students.php?action=add<?= $listQuery ?>" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">+ Add Student</a><?php endif; ?>
             </div>
         <?php else: ?>
             <div class="table-responsive">
@@ -252,7 +361,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                 </td>
                                 <td style="text-align:right;">
                                     <div class="flex gap-1" style="justify-content:flex-end;">
-                                        <a href="/admin/students.php?action=edit&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline">Edit</a>
+                                        <a href="/admin/students.php?action=edit&id=<?= $s['id'] ?><?= $listQuery ?>" class="btn btn-sm btn-outline">Edit</a>
                                         <a href="/admin/qr-codes.php?student_id=<?= $s['id'] ?>" class="btn btn-sm btn-primary" title="View / Print QR Code">QR</a>
                                     </div>
                                 </td>
