@@ -54,6 +54,7 @@ require_once __DIR__ . '/src/Helpers/functions.php';
 require_once __DIR__ . '/src/Helpers/auth.php';
 require_once __DIR__ . '/src/Helpers/validation.php';
 require_once __DIR__ . '/src/Helpers/sms.php';
+require_once __DIR__ . '/src/Helpers/backup.php';
 
 /* ------------------------------------------------------------------
  * Fatal-error safety net — never show a blank white page.

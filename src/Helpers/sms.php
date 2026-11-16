@@ -276,6 +276,22 @@ function setting_ensure_table(): void
         svalue TEXT DEFAULT NULL,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB");
+
+    // Installations from 2026-08 named these columns `key` and `value`. Rename
+    // them once here so every page can read a setting again — otherwise the
+    // older school PC breaks the moment it runs a newer build.
+    try {
+        $names = array_column(db()->query("SHOW COLUMNS FROM settings")->fetchAll(), 'Field');
+        if (in_array('key', $names, true) && !in_array('skey', $names, true)) {
+            db()->exec("ALTER TABLE settings
+                CHANGE COLUMN `key` skey VARCHAR(100) NOT NULL,
+                CHANGE COLUMN `value` svalue TEXT DEFAULT NULL");
+            error_log('SCPLS settings table renamed to skey/svalue');
+        }
+    } catch (\Throwable $e) {
+        error_log('SCPLS settings upgrade: ' . $e->getMessage());
+    }
+
     $done = true;
 }
 
@@ -319,8 +335,16 @@ function notify_ensure_schema(): void
             }
             $idx = db()->query("SHOW INDEX FROM sms_logs WHERE Key_name = 'uq_notif_student_type_day_channel' AND Column_name = 'dedup_key'")->fetch();
             if (!$idx) {
+                // The foreign key on student_id leans on that unique index, and
+                // MySQL refuses to drop an index a FK still needs — so give the
+                // FK its own index first, then rebuild the unique one.
+                if (!db()->query("SHOW INDEX FROM sms_logs WHERE Key_name = 'idx_sms_student'")->fetch()) {
+                    db()->exec("ALTER TABLE sms_logs ADD INDEX idx_sms_student (student_id)");
+                }
+                if (db()->query("SHOW INDEX FROM sms_logs WHERE Key_name = 'uq_notif_student_type_day_channel'")->fetch()) {
+                    db()->exec("ALTER TABLE sms_logs DROP INDEX uq_notif_student_type_day_channel");
+                }
                 db()->exec("ALTER TABLE sms_logs
-                    DROP INDEX uq_notif_student_type_day_channel,
                     ADD UNIQUE KEY uq_notif_student_type_day_channel (student_id, type, sms_date, channel, dedup_key)");
             }
             setting_set('schema_version', '3');
