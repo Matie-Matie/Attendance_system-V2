@@ -13,15 +13,81 @@ $action = $_GET['action'] ?? 'list';
 $id = (int)($_GET['id'] ?? 0);
 $errors = [];
 
+// Keep the list search when leaving the form and coming back, so editing a
+// teacher doesn't drop the office back into the full faculty list.
+$listParams = [];
+if (trim((string) ($_GET['search'] ?? '')) !== '') $listParams['search'] = trim((string) $_GET['search']);
+$listUrl = '/admin/teachers.php' . ($listParams ? '?' . http_build_query($listParams) : '');
+$listQuery = $listParams ? '&' . http_build_query($listParams) : '';
+
 // Handle form
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $submitAction = $_POST['submit_action'] ?? '';
+
+    // Delete is its own path. A teacher is a login plus a profile, and classes
+    // and attendance sessions point at them — so they only go when nothing is
+    // recorded. Elsewhere the office deactivates instead of erasing history.
+    if ($submitAction === 'delete') {
+        $deleteId = (int) ($_POST['id'] ?? 0);
+        $found = null;
+        if ($deleteId > 0) {
+            $stmt = db()->prepare("SELECT t.id, t.user_id, t.first_name, t.last_name, t.employee_id, u.username
+                                   FROM teachers t JOIN users u ON t.user_id = u.id
+                                   WHERE t.id = ?");
+            $stmt->execute([$deleteId]);
+            $found = $stmt->fetch() ?: null;
+        }
+
+        if (!$found) {
+            $_SESSION['_flash']['error'] = 'That teacher no longer exists.';
+        } else {
+            $fullName = $found['first_name'] . ' ' . $found['last_name'];
+
+            $countSessions = db()->prepare("SELECT COUNT(*) FROM attendance_sessions WHERE teacher_id = ?");
+            $countSessions->execute([$deleteId]);
+            $sessions = (int) $countSessions->fetchColumn();
+
+            $countClasses = db()->prepare("SELECT COUNT(*) FROM schedule_entries WHERE teacher_id = ?");
+            $countClasses->execute([$deleteId]);
+            $classes = (int) $countClasses->fetchColumn();
+
+            if ($sessions > 0) {
+                $_SESSION['_flash']['error'] = "Cannot delete {$fullName} — {$sessions} attendance session"
+                    . ($sessions === 1 ? ' is' : 's are') . ' recorded under them. History is kept for reports.';
+            } elseif ($classes > 0) {
+                $_SESSION['_flash']['error'] = "Cannot delete {$fullName} — {$classes} class"
+                    . ($classes === 1 ? ' is' : 'es are') . ' still in the Teacher Schedule. Remove them there first.';
+            } else {
+                $db = db();
+                try {
+                    $db->beginTransaction();
+                    // teachers.user_id cascades from users, so one delete removes
+                    // the login account and the teacher profile together.
+                    $db->prepare("DELETE FROM users WHERE id = ?")->execute([(int) $found['user_id']]);
+                    $db->commit();
+                    log_audit('delete', 'teacher', (int) $found['user_id'], [
+                        'username' => $found['username'],
+                        'employee_id' => $found['employee_id'],
+                        'name' => $fullName,
+                    ]);
+                    $_SESSION['_flash']['success'] = "Teacher {$fullName} deleted — their login was removed too.";
+                } catch (\Throwable $e) {
+                    if ($db->inTransaction()) $db->rollBack();
+                    error_log('SCPLS teacher delete: ' . $e->getMessage());
+                    $_SESSION['_flash']['error'] = 'Could not delete that teacher — they may still be linked to records.';
+                }
+            }
+        }
+
+        redirect($listUrl);
+    }
+
     $firstName = trim($_POST['first_name'] ?? '');
     $lastName = trim($_POST['last_name'] ?? '');
     $employeeId = trim($_POST['employee_id'] ?? '');
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     $email = trim($_POST['email'] ?? '');
-    $submitAction = $_POST['submit_action'] ?? '';
 
     if (empty($firstName)) $errors[] = 'First name is required.';
     if (empty($lastName)) $errors[] = 'Last name is required.';
@@ -64,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->commit();
                 log_audit('create', 'teacher', (int) $userId, ['username' => $username, 'name' => "$firstName $lastName"]);
                 $_SESSION['_flash']['success'] = "Teacher '{$firstName} {$lastName}' created.";
-                redirect('/admin/teachers.php');
+                redirect($listUrl);
             } elseif ($submitAction === 'edit' && $id > 0) {
                 $db->beginTransaction();
                 $stmt = $db->prepare("UPDATE teachers SET first_name = ?, last_name = ?, employee_id = ? WHERE id = ?");
@@ -82,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->commit();
                 log_audit('update', 'teacher', (int) ($teacher['user_id'] ?? 0), ['name' => "$firstName $lastName", 'password_changed' => $password !== '']);
                 $_SESSION['_flash']['success'] = $password !== '' ? 'Teacher updated (password changed).' : 'Teacher updated.';
-                redirect('/admin/teachers.php');
+                redirect($listUrl);
             }
         } catch (\Throwable $e) {
             if ($db->inTransaction()) $db->rollBack();
@@ -112,9 +178,23 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
         ];
     }
     $isEdit = $action === 'edit';
+
+    // What still points at this teacher — shown beside the delete button so the
+    // office knows why it can't go yet.
+    $linkedClasses = 0;
+    $linkedSessions = 0;
+    if ($isEdit) {
+        $countClasses = db()->prepare("SELECT COUNT(*) FROM schedule_entries WHERE teacher_id = ?");
+        $countClasses->execute([$id]);
+        $linkedClasses = (int) $countClasses->fetchColumn();
+
+        $countSessions = db()->prepare("SELECT COUNT(*) FROM attendance_sessions WHERE teacher_id = ?");
+        $countSessions->execute([$id]);
+        $linkedSessions = (int) $countSessions->fetchColumn();
+    }
 ?>
     <div class="card form-card">
-        <div class="card-header"><h3><?= $isEdit ? 'Edit Teacher' : 'Add Teacher' ?></h3><a href="/admin/teachers.php" class="btn btn-outline btn-sm">Back</a></div>
+        <div class="card-header"><h3><?= $isEdit ? 'Edit Teacher' : 'Add Teacher' ?></h3><a href="<?= h($listUrl) ?>" class="btn btn-outline btn-sm">Back</a></div>
         <div class="card-body">
             <?php if (!empty($errors)): ?>
                 <div class="alert alert-danger fade-in">
@@ -159,9 +239,32 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary"><?= $isEdit ? 'Update Teacher' : 'Create Teacher' ?></button>
-                    <a href="/admin/teachers.php" class="btn btn-outline">Cancel</a>
+                    <a href="<?= h($listUrl) ?>" class="btn btn-outline">Cancel</a>
                 </div>
             </form>
+
+            <?php if ($isEdit): ?>
+                <div style="border-top:1px solid var(--border-color); margin-top:1.5rem; padding-top:1.25rem;">
+                    <p class="text-sm text-muted" style="margin:0 0 0.75rem;">
+                        <?php if ($linkedSessions > 0): ?>
+                            This teacher has <strong><?= $linkedSessions ?></strong> attendance session<?= $linkedSessions === 1 ? '' : 's' ?>
+                            recorded, so they can't be deleted — history is kept for reports.
+                        <?php elseif ($linkedClasses > 0): ?>
+                            This teacher still has <strong><?= $linkedClasses ?></strong> class<?= $linkedClasses === 1 ? '' : 'es' ?>
+                            in the Teacher Schedule, so they can't be deleted yet. Remove them there first.
+                        <?php else: ?>
+                            Deleting a teacher also removes their login account, and it can't be undone.
+                            Use this for a wrong entry or duplicate.
+                        <?php endif; ?>
+                    </p>
+                    <form method="POST" onsubmit="return confirm('Delete this teacher? Their login is removed too. This cannot be undone.');">
+                        <input type="hidden" name="submit_action" value="delete">
+                        <input type="hidden" name="id" value="<?= (int) $id ?>">
+                        <?= csrf_field() ?>
+                        <button type="submit" class="btn btn-sm btn-danger" <?= ($linkedSessions > 0 || $linkedClasses > 0) ? 'disabled' : '' ?>>Delete this teacher</button>
+                    </form>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 <?php
@@ -231,7 +334,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                 <td style="font-size:0.85rem; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?= h($t['email']) ?>"><?= h($t['email']) ?: '<span class="text-muted">—</span>' ?></td>
                                 <td><span class="badge <?= $t['user_status'] ? 'badge-success' : 'badge-danger' ?>"><?= $t['user_status'] ? 'Active' : 'Inactive' ?></span></td>
                                 <td><span class="badge <?= $sc > 0 ? 'badge-info' : 'badge-warning' ?>" title="Classes assigned this school year"><?= $sc ?> <?= $sc===1?'class':'classes' ?></span></td>
-                                <td style="text-align:right;"><a href="/admin/teachers.php?action=edit&id=<?= $t['id'] ?>" class="btn btn-sm btn-outline">Edit</a></td>
+                                <td style="text-align:right;"><a href="/admin/teachers.php?action=edit&id=<?= $t['id'] ?><?= $listQuery ?>" class="btn btn-sm btn-outline">Edit</a></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
