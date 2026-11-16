@@ -11,7 +11,19 @@ $currentPage = 'backup';
 $slot = '';
 
 require_once __DIR__ . '/../../bootstrap.php';
-require_role('admin');
+require_auth();
+
+// Teachers run their own copy of the system on their laptop and only ever need
+// to export. Importing (merge or replace) changes the whole site, so it stays
+// with the admin.
+$isAdmin = has_role('admin');
+$postAction = $_POST['submit_action'] ?? '';
+if (!$isAdmin) {
+    if (isset($_GET['download']) || ($_SERVER['REQUEST_METHOD'] === 'POST' && $postAction !== 'export')) {
+        http_response_code(403);
+        exit('Only the admin can import or download backups.');
+    }
+}
 
 $backupDir = backup_dir();
 $staged    = $_SESSION['backup_staged'] ?? null;
@@ -257,7 +269,11 @@ ob_start();
 <div class="page-intro">
     <div class="page-intro-main">
         <h1>Backup &amp; Restore</h1>
+        <?php if ($isAdmin): ?>
         <p>Move the whole school between machines, or collect the teachers' weekly hand-ins. Export on the machine that has the data, upload it here, then choose <strong>Merge</strong> (add what is new, keep everything here) or <strong>Replace</strong> (use only when moving the whole system to a new PC).</p>
+        <?php else: ?>
+        <p>Download your own copy of the system's data to hand to the admin — students, schedule and the attendance recorded on this laptop. Nothing is changed by exporting.</p>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -280,6 +296,7 @@ ob_start();
         </div>
     </div>
 
+    <?php if ($isAdmin): ?>
     <div class="card">
         <div class="card-header"><h3>Import into this site</h3></div>
         <div class="card-body">
@@ -382,8 +399,10 @@ ob_start();
             <?php endif; ?>
         </div>
     </div>
+    <?php endif; ?>
 </div>
 
+<?php if ($isAdmin): ?>
 <div class="card" style="margin-top:1.25rem;">
     <div class="card-header"><h3>Files on this server</h3></div>
     <div class="card-body p-0">
@@ -408,7 +427,8 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
+<?php endif; ?>
 
 <?php
 $slot = ob_get_clean();
-include __DIR__ . '/../../includes/layouts/admin-layout.php';
+include __DIR__ . '/../../includes/layouts/' . ($isAdmin ? 'admin-layout.php' : 'teacher-layout.php');
