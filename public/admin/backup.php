@@ -128,6 +128,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'meta'   => $payload['meta'] ?? [],
             'counts' => backup_payload_counts($payload),
         ];
+
+        // Dry-run the merge so the office sees what a hand-in would add before
+        // touching anything. It runs inside a transaction and is rolled back.
+        try {
+            $preview = backup_merge($payload, true);
+            $_SESSION['backup_staged']['merge'] = $preview['stats'];
+            $_SESSION['backup_staged']['merge_examples'] = $preview['examples'];
+        } catch (\Throwable $e) {
+            error_log('SCPLS merge preview: ' . $e->getMessage());
+            $_SESSION['backup_staged']['merge'] = null;
+            $_SESSION['backup_staged']['merge_examples'] = [];
+        }
+
         redirect('/admin/backup.php');
     }
 
@@ -136,6 +149,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset($_SESSION['backup_staged']);
         $_SESSION['_flash']['info'] = 'Import cancelled — nothing was changed.';
         redirect('/admin/backup.php');
+    }
+
+    if ($submitAction === 'merge') {
+        if (!$staged || !is_file($staged['path'] ?? '')) {
+            $_SESSION['_flash']['error'] = 'That file has expired — upload it again.';
+            redirect('/admin/backup.php');
+        }
+
+        set_time_limit(0);
+        try {
+            $payload = backup_read_payload($staged['path']);
+            $safety  = null;
+            try { $safety = backup_export()['path']; } catch (\Throwable $e) { error_log('SCPLS merge safety: ' . $e->getMessage()); }
+
+            $result = backup_merge($payload);
+
+            log_audit('merge', 'backup', null, [
+                'file'   => $staged['name'],
+                'stats'  => $result['stats'],
+                'safety' => $safety ? basename($safety) : null,
+            ]);
+
+            @unlink($staged['path']);
+            unset($_SESSION['backup_staged']);
+
+            $added = 0; $have = 0; $conflicts = 0;
+            foreach ($result['stats'] as $s) {
+                $added += $s['new']; $have += $s['have']; $conflicts += $s['conflict'];
+            }
+
+            $_SESSION['_flash']['success'] = 'Merge finished — ' . number_format($added) . ' new row(s) added, '
+                . number_format($have) . ' already here, ' . number_format($conflicts) . ' conflict(s) kept this site\'s version.'
+                . ($safety ? ' Safety copy: ' . basename($safety) . '.' : '');
+            redirect('/admin/backup.php');
+        } catch (\Throwable $e) {
+            error_log('SCPLS backup merge: ' . $e->getMessage());
+            $_SESSION['_flash']['error'] = 'Merge failed: ' . $e->getMessage() . ' Nothing was changed.';
+            redirect('/admin/backup.php');
+        }
     }
 
     if ($submitAction === 'import') {
@@ -205,7 +257,7 @@ ob_start();
 <div class="page-intro">
     <div class="page-intro-main">
         <h1>Backup &amp; Restore</h1>
-        <p>Move the whole school between the office PC and this site. Export on the machine that has the data, then import the file here — students, sections, schedules, attendance and parent-notification history all travel together.</p>
+        <p>Move the whole school between machines, or collect the teachers' weekly hand-ins. Export on the machine that has the data, upload it here, then choose <strong>Merge</strong> (add what is new, keep everything here) or <strong>Replace</strong> (use only when moving the whole system to a new PC).</p>
     </div>
 </div>
 
@@ -232,30 +284,41 @@ ob_start();
         <div class="card-header"><h3>Import into this site</h3></div>
         <div class="card-body">
             <?php if ($staged): ?>
-                <?php $meta = $staged['meta'] ?? []; ?>
-                <div class="alert alert-warning" style="margin-top:0;">
-                    This replaces <strong>all</strong> students, teachers, sections, schedules and attendance on this site.
-                    A safety copy of what is here now is saved automatically before anything changes.
-                </div>
+                <?php
+                $meta        = $staged['meta'] ?? [];
+                $mergeStats  = $staged['merge'] ?? null;
+                $mergeNotes  = $staged['merge_examples'] ?? [];
+                $totalNew    = 0; $totalHave = 0; $totalConflict = 0;
+                if ($mergeStats) {
+                    foreach ($mergeStats as $s) { $totalNew += $s['new']; $totalHave += $s['have']; $totalConflict += $s['conflict']; }
+                }
+                ?>
                 <p class="text-sm" style="margin:0 0 0.4rem;">
                     <strong><?= h($staged['name']) ?></strong>
                     <?php if (!empty($meta['generated'])): ?>
                         · made <?= h(date('M j, Y g:i A', strtotime((string) $meta['generated']))) ?>
                     <?php endif; ?>
-                    <?php if (!empty($meta['version'])): ?> · from SCPLS v<?= h((string) $meta['version']) ?><?php endif; ?>
+                    <?php if (!empty($meta['machine'])): ?> · from <code><?= h((string) $meta['machine']) ?></code><?php endif; ?>
+                    <?php if (!empty($meta['version'])): ?> · SCPLS v<?= h((string) $meta['version']) ?><?php endif; ?>
                 </p>
-                <?php if (!empty($meta['school'])): ?>
-                    <p class="text-xs text-muted" style="margin:0 0 0.75rem;">Source school: <?= h((string) $meta['school']) ?></p>
-                <?php endif; ?>
 
                 <div class="table-responsive">
                     <table class="table">
-                        <thead><tr><th>Data</th><th style="text-align:right;">In the file</th><th style="text-align:right;">On this site now</th></tr></thead>
+                        <thead><tr>
+                            <th>Data</th>
+                            <th style="text-align:right;">In the file</th>
+                            <th style="text-align:right;">New</th>
+                            <th style="text-align:right;">Already here</th>
+                            <th style="text-align:right;">On this site now</th>
+                        </tr></thead>
                         <tbody>
                             <?php foreach ($staged['counts'] as $table => $incoming): ?>
+                                <?php $m = $mergeStats[$table] ?? null; ?>
                                 <tr>
                                     <td><?= h($labels[$table] ?? $table) ?></td>
-                                    <td style="text-align:right;"><strong><?= number_format((int) $incoming) ?></strong></td>
+                                    <td style="text-align:right;"><?= number_format((int) $incoming) ?></td>
+                                    <td style="text-align:right;"><strong><?= $m ? number_format($m['new']) : '—' ?></strong></td>
+                                    <td style="text-align:right;" class="text-muted"><?= $m ? number_format($m['have']) : '—' ?></td>
                                     <td style="text-align:right;" class="text-muted"><?= number_format((int) ($currentCounts[$table] ?? 0)) ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -263,24 +326,50 @@ ob_start();
                     </table>
                 </div>
 
+                <?php if ($mergeStats && $totalConflict > 0): ?>
+                    <p class="text-xs text-muted" style="margin:0.5rem 0 0;">
+                        <?= number_format($totalConflict) ?> conflict(s) — this site keeps its own version.
+                        <?php if ($mergeNotes): ?>For example: <?= h(implode(', ', $mergeNotes)) ?>.<?php endif; ?>
+                    </p>
+                <?php endif; ?>
+
+                <div style="border-top:1px solid var(--border-color); margin-top:1.25rem; padding-top:1.1rem;">
+                    <p class="text-sm" style="margin:0 0 0.35rem;"><strong>Merge into this site</strong></p>
+                    <p class="text-sm text-muted" style="margin:0 0 0.8rem;">
+                        Adds what is new and leaves everything here alone — nothing deleted, nothing overwritten.
+                        This is the one to use for a teacher's weekly hand-in.
+                    </p>
+                    <form method="POST" onsubmit="return confirm('Merge this file into the site? Nothing on this site is deleted or overwritten.');">
+                        <input type="hidden" name="submit_action" value="merge">
+                        <?= csrf_field() ?>
+                        <button type="submit" class="btn btn-primary">Merge <strong><?= number_format($totalNew) ?></strong> new row(s)</button>
+                    </form>
+                </div>
+
+                <div style="border-top:1px solid var(--border-color); margin-top:1.25rem; padding-top:1.1rem;">
+                    <p class="text-sm" style="margin:0 0 0.35rem;"><strong>Replace everything</strong></p>
+                    <p class="text-sm text-muted" style="margin:0 0 0.8rem;">
+                        Wipes this site's students, teachers, sections, schedules and attendance, then loads the file's.
+                        Only for moving the whole system to a new machine. A safety copy is saved first.
+                    </p>
+                    <form method="POST">
+                        <input type="hidden" name="submit_action" value="import">
+                        <?= csrf_field() ?>
+                        <label class="flex items-center gap-2" style="font-size:0.85rem; margin-bottom:0.8rem;">
+                            <input type="checkbox" name="confirm" value="yes" required>
+                            I understand this replaces the data on this site.
+                        </label>
+                        <button type="submit" class="btn btn-danger">Replace everything</button>
+                    </form>
+                </div>
+
                 <form method="POST" style="margin-top:1rem;">
-                    <input type="hidden" name="submit_action" value="import">
-                    <?= csrf_field() ?>
-                    <label class="flex items-center gap-2" style="font-size:0.85rem; margin-bottom:0.9rem;">
-                        <input type="checkbox" name="confirm" value="yes" required>
-                        I understand this replaces the data on this site.
-                    </label>
-                    <div class="form-actions" style="margin:0;">
-                        <button type="submit" class="btn btn-danger">Import and replace</button>
-                    </div>
-                </form>
-                <form method="POST" style="margin-top:0.6rem;">
                     <input type="hidden" name="submit_action" value="cancel">
                     <?= csrf_field() ?>
                     <button type="submit" class="btn btn-outline btn-sm">Cancel</button>
                 </form>
             <?php else: ?>
-                <p class="text-sm text-muted" style="margin-top:0;">Pick the file made by <strong>Export</strong> on the other machine. Nothing changes until you review the counts and confirm.</p>
+                <p class="text-sm text-muted" style="margin-top:0;">Pick the file made by <strong>Export</strong> on the other machine — a teacher's weekly hand-in, or a copy from another PC. Nothing changes until you review the counts and choose Merge or Replace.</p>
                 <form method="POST" enctype="multipart/form-data">
                     <input type="hidden" name="submit_action" value="stage">
                     <?= csrf_field() ?>
