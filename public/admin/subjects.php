@@ -14,12 +14,57 @@ $action = $_GET['action'] ?? 'list';
 $id = (int)($_GET['id'] ?? 0);
 $errors = [];
 
+// Keep the list's search text and page through edit/save/cancel, so the office
+// doesn't get thrown back to the top of the catalogue.
+$listParams = [];
+if (trim((string) ($_GET['search'] ?? '')) !== '') $listParams['search'] = trim((string) $_GET['search']);
+if ((int) ($_GET['page'] ?? 1) > 1) $listParams['page'] = (int) $_GET['page'];
+$listUrl = '/admin/subjects.php' . ($listParams ? '?' . http_build_query($listParams) : '');
+$listQuery = $listParams ? '&' . http_build_query($listParams) : '';
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $submitAction = $_POST['submit_action'] ?? '';
+
+    // Delete is its own path. A subject is what schedules and reports are built
+    // on, so it can only go when no class still uses it.
+    if ($submitAction === 'delete') {
+        $deleteId = (int) ($_POST['id'] ?? 0);
+        $found = null;
+        if ($deleteId > 0) {
+            $stmt = db()->prepare("SELECT id, name, code FROM subjects WHERE id = ?");
+            $stmt->execute([$deleteId]);
+            $found = $stmt->fetch() ?: null;
+        }
+
+        if (!$found) {
+            $_SESSION['_flash']['error'] = 'That subject no longer exists.';
+        } else {
+            $countClasses = db()->prepare("SELECT COUNT(*) FROM schedule_entries WHERE subject_id = ?");
+            $countClasses->execute([$deleteId]);
+            $classes = (int) $countClasses->fetchColumn();
+
+            if ($classes > 0) {
+                $_SESSION['_flash']['error'] = "Cannot delete '{$found['name']}' — {$classes} class"
+                    . ($classes === 1 ? ' is' : 'es are') . ' still in the Teacher Schedule. Remove them there first.';
+            } else {
+                try {
+                    db()->prepare("DELETE FROM subjects WHERE id = ?")->execute([$deleteId]);
+                    log_audit('delete', 'subject', $deleteId, ['name' => $found['name'], 'code' => $found['code']]);
+                    $_SESSION['_flash']['success'] = "Subject '{$found['name']}' deleted.";
+                } catch (\Throwable $e) {
+                    error_log('SCPLS subject delete: ' . $e->getMessage());
+                    $_SESSION['_flash']['error'] = 'Could not delete that subject — it may still be linked to records.';
+                }
+            }
+        }
+
+        redirect($listUrl);
+    }
+
     $name = trim($_POST['name'] ?? '');
     $code = trim($_POST['code'] ?? '');
     $description = trim($_POST['description'] ?? '');
-    $submitAction = $_POST['submit_action'] ?? '';
 
     if (empty($name)) $errors[] = 'Subject name is required.';
 
@@ -37,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([$name, $code ?: null, $description ?: null]);
                     log_audit('create', 'subject', (int) db()->lastInsertId(), ['name' => $name, 'code' => $code]);
                     $_SESSION['_flash']['success'] = "Subject '{$name}' created successfully.";
-                    redirect('/admin/subjects.php');
+                    redirect($listUrl);
                 } catch (\Throwable $e) {
                     error_log('SCPLS subject create: ' . $e->getMessage());
                     $errors[] = 'Could not save the subject. Please check the values and try again.';
@@ -49,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$name, $code ?: null, $description ?: null, $id]);
                 log_audit('update', 'subject', $id, ['name' => $name, 'code' => $code]);
                 $_SESSION['_flash']['success'] = "Subject updated successfully.";
-                redirect('/admin/subjects.php');
+                redirect($listUrl);
             } catch (\Throwable $e) {
                 error_log('SCPLS subject update: ' . $e->getMessage());
                 $errors[] = 'Could not update the subject. Please check the values and try again.';
@@ -78,11 +123,19 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
         ];
     }
     $isEdit = $action === 'edit';
+
+    // What still points at this subject — shown beside the delete button.
+    $linkedClasses = 0;
+    if ($isEdit) {
+        $countClasses = db()->prepare("SELECT COUNT(*) FROM schedule_entries WHERE subject_id = ?");
+        $countClasses->execute([$id]);
+        $linkedClasses = (int) $countClasses->fetchColumn();
+    }
 ?>
     <div class="card form-card">
         <div class="card-header">
             <h3><?= $isEdit ? 'Edit Subject' : 'Add Subject' ?></h3>
-            <a href="/admin/subjects.php" class="btn btn-outline btn-sm">Back to List</a>
+            <a href="<?= h($listUrl) ?>" class="btn btn-outline btn-sm">Back to List</a>
         </div>
         <div class="card-body">
             <?php if (!empty($errors)): ?>
@@ -117,9 +170,28 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                     <button type="submit" class="btn btn-primary">
                         <?= $isEdit ? 'Update Subject' : 'Create Subject' ?>
                     </button>
-                    <a href="/admin/subjects.php" class="btn btn-outline">Cancel</a>
+                    <a href="<?= h($listUrl) ?>" class="btn btn-outline">Cancel</a>
                 </div>
             </form>
+
+            <?php if ($isEdit): ?>
+                <div style="border-top:1px solid var(--border-color); margin-top:1.5rem; padding-top:1.25rem;">
+                    <p class="text-sm text-muted" style="margin:0 0 0.75rem;">
+                        <?php if ($linkedClasses > 0): ?>
+                            This subject still has <strong><?= $linkedClasses ?></strong> class<?= $linkedClasses === 1 ? '' : 'es' ?>
+                            in the Teacher Schedule, so it can't be deleted yet. Remove them there first.
+                        <?php else: ?>
+                            Deleting a subject can't be undone. Use this for a wrong entry or duplicate.
+                        <?php endif; ?>
+                    </p>
+                    <form method="POST" onsubmit="return confirm('Delete this subject? This cannot be undone.');">
+                        <input type="hidden" name="submit_action" value="delete">
+                        <input type="hidden" name="id" value="<?= (int) $id ?>">
+                        <?= csrf_field() ?>
+                        <button type="submit" class="btn btn-sm btn-danger" <?= $linkedClasses > 0 ? 'disabled' : '' ?>>Delete this subject</button>
+                    </form>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 <?php
@@ -227,7 +299,7 @@ if ($action === 'add' || ($action === 'edit' && $id > 0)) {
                                     </span>
                                 </td>
                                 <td style="text-align:right;">
-                                    <a href="/admin/subjects.php?action=edit&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline">Edit</a>
+                                    <a href="/admin/subjects.php?action=edit&id=<?= $s['id'] ?><?= $listQuery ?>" class="btn btn-sm btn-outline">Edit</a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
